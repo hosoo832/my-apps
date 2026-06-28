@@ -858,8 +858,17 @@ function importData(e){
     try{
       const d=JSON.parse(r.result);
       if(!d || !Array.isArray(d.txns) || !Array.isArray(d.recurring)) throw 0;
-      if(!confirm('현재 데이터를 덮어쓸까요?')) return;
-      state=d; save(); render(); toast('가져오기 완료 ✓');
+      const merge = confirm('기존 데이터에 합칠까요?\n\n[확인] 합치기 — 기존 내역은 그대로 두고 추가\n[취소] 덮어쓰기 — 현재 데이터를 모두 지우고 교체');
+      if(merge){
+        const tids=new Set(state.txns.map(t=>t.id));
+        d.txns.forEach(t=>{ if(!tids.has(t.id)) state.txns.push(t); });
+        const rids=new Set(state.recurring.map(x=>x.id));
+        d.recurring.forEach(x=>{ if(!rids.has(x.id)) state.recurring.push(x); });
+        save(); render(); toast(`${d.txns.length}건 합쳤어요 ✓`);
+      }else{
+        if(!confirm('정말 현재 데이터를 모두 덮어쓸까요? 되돌릴 수 없어요.')) return;
+        state=d; save(); render(); toast('가져오기 완료 ✓');
+      }
     }catch(err){ toast('올바른 백업 파일이 아니에요'); }
   };
   r.readAsText(file);
