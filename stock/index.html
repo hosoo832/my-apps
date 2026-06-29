@@ -244,6 +244,12 @@
     </div>
 
     <div class="card">
+      <h2>🤖 클로드 리포트 합치기</h2>
+      <p class="mini" style="margin:-4px 0 10px">클로드가 만들어 준 리포트(JSON)를 여기에 붙여넣으면, <b>기존 종목·기록을 지우지 않고 그 위에 쌓입니다</b>. 같은 리포트는 중복으로 안 들어가요.</p>
+      <button class="btn ghost sm" onclick="openMerge()">＋ 리포트 붙여넣어 합치기</button>
+    </div>
+
+    <div class="card">
       <h2>💾 데이터 백업</h2>
       <p class="mini" style="margin:-4px 0 10px">종목·리포트·메모는 이 기기 브라우저에만 저장돼요. 기기를 바꾸거나 백업하려면 내보내기 하세요. (시세는 백업에 포함되지 않고 다시 불러옵니다.)</p>
       <div class="btn-row" style="margin-bottom:8px">
@@ -381,6 +387,25 @@
       <button class="btn" onclick="saveReport()">저장</button>
     </div>
     <button class="btn danger sm" id="rDeleteBtn" onclick="deleteReport()" style="margin-top:8px;display:none">이 기록 삭제</button>
+  </div>
+</div>
+
+<!-- 리포트 합치기 모달 -->
+<div class="modal-bg" id="mergeModal">
+  <div class="modal">
+    <div class="grab"></div>
+    <h3>리포트 합치기</h3>
+    <p class="sub">클로드가 준 JSON을 통째로 붙여넣고 합치기를 누르세요. 기존 데이터 위에 누적됩니다.</p>
+    <div class="field">
+      <textarea id="mergeText" style="min-height:160px;font-family:ui-monospace,monospace;font-size:13px" placeholder='{ "stocks": [ { "market":"KOSPI", "code":"112610", "reports":[ ... ] } ] }'></textarea>
+      <div class="hint">파일로 받았다면 아래 버튼으로 파일을 골라도 됩니다.</div>
+    </div>
+    <div class="btn-row" style="margin-bottom:8px">
+      <button class="btn ghost" onclick="closeMerge()">취소</button>
+      <button class="btn" onclick="doMergePaste()">합치기</button>
+    </div>
+    <button class="btn ghost sm" onclick="document.getElementById('mergeFile').click()">📂 파일에서 합치기</button>
+    <input type="file" id="mergeFile" accept="application/json" style="display:none" onchange="doMergeFile(event)" />
   </div>
 </div>
 
@@ -941,6 +966,62 @@ function importData(ev){
   };
   reader.readAsText(file); ev.target.value="";
 }
+/* ---------- 합치기(누적) ---------- */
+function openMerge(){ document.getElementById("mergeText").value=""; document.getElementById("mergeModal").classList.add("show"); }
+function closeMerge(){ document.getElementById("mergeModal").classList.remove("show"); }
+function normStance(v){ v=(v||"").toString().trim().toLowerCase(); if(["buy","매수","strong buy","outperform","overweight"].includes(v)) return "buy"; if(["sell","매도","underperform","underweight","reduce"].includes(v)) return "sell"; if(["hold","중립","관망","neutral","marketperform","market perform"].includes(v)) return "hold"; return ""; }
+function repKey(r){ return [(r.date||"").trim(),(r.broker||"").trim().toLowerCase(),(r.summary||"").trim().slice(0,40)].join("|"); }
+function mergeData(d){
+  if(!d||!Array.isArray(d.stocks)) throw new Error("형식 오류: stocks 배열이 없어요");
+  let newStocks=0,newReports=0,touched=[];
+  d.stocks.forEach(imp=>{
+    const code=(imp.code||"").toString().trim();
+    if(!code) return;
+    const market=imp.market||"US";
+    let s=db.stocks.find(x=>(x.code||"").toUpperCase()===code.toUpperCase() && x.market===market);
+    if(!s){
+      s={ id:uid(), created:Date.now(), market, code, name:(imp.name||"").trim(),
+          stance:normStance(imp.stance), target:(imp.target!=null&&imp.target!==""&&!isNaN(Number(imp.target)))?Number(imp.target):null,
+          points:imp.points||"", risks:imp.risks||"", memo:imp.memo||"", reports:[] };
+      db.stocks.push(s); newStocks++;
+    } else {
+      if((!s.name||!s.name.trim()) && imp.name) s.name=imp.name.trim();
+    }
+    if(!Array.isArray(s.reports)) s.reports=[];
+    const seen=new Set(s.reports.map(repKey));
+    (imp.reports||[]).forEach(r=>{
+      const rr={ date:(r.date||todayStr()), broker:(r.broker||"").toString().trim(),
+        stance:normStance(r.stance),
+        target:(r.target!=null&&r.target!==""&&!isNaN(Number(r.target)))?Number(r.target):null,
+        summary:(r.summary||"").toString().trim(), link:(r.link||"").toString().trim() };
+      const k=repKey(rr);
+      if(seen.has(k)) return;
+      seen.add(k);
+      s.reports.push(Object.assign({id:uid(),created:Date.now()},rr));
+      newReports++;
+    });
+    s.updated=Date.now();
+    if(touched.indexOf(s)<0) touched.push(s);
+  });
+  save(); render();
+  touched.forEach(s=>{ if(!quotes[s.id]||quotes[s.id].err) refreshOne(s,true); });
+  toast(`합쳤어요 · 새 종목 ${newStocks}개, 새 리포트 ${newReports}건`);
+  return {newStocks,newReports};
+}
+function doMergePaste(){
+  const raw=document.getElementById("mergeText").value.trim();
+  if(!raw){ toast("붙여넣은 내용이 없어요"); return; }
+  try{ mergeData(JSON.parse(raw)); closeMerge(); switchView("list"); }
+  catch(e){ toast("합치기 실패: "+(e.message||"JSON 형식 확인")); }
+}
+function doMergeFile(ev){
+  const file=ev.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=()=>{ try{ mergeData(JSON.parse(reader.result)); closeMerge(); switchView("list"); }
+    catch(e){ toast("합치기 실패: "+(e.message||"파일 확인")); } };
+  reader.readAsText(file); ev.target.value="";
+}
+
 function resetAll(){
   if(!confirm("모든 종목·리포트·메모를 삭제할까요? 되돌릴 수 없어요.")) return;
   db={v:1,stocks:[],settings:{proxy:"auto",customProxy:""}};
@@ -958,6 +1039,7 @@ function toast(msg){
 /* ---------- 모달 배경 클릭 ---------- */
 document.getElementById("editModal").addEventListener("click",e=>{ if(e.target.id==="editModal") closeEdit(); });
 document.getElementById("reportModal").addEventListener("click",e=>{ if(e.target.id==="reportModal") closeReport(); });
+document.getElementById("mergeModal").addEventListener("click",e=>{ if(e.target.id==="mergeModal") closeMerge(); });
 document.getElementById("detailModal").addEventListener("click",e=>{ if(e.target.id==="detailModal") closeDetail(); });
 
 /* ---------- 초기화 ---------- */
