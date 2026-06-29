@@ -1021,6 +1021,25 @@ function doMergeFile(ev){
     catch(e){ toast("합치기 실패: "+(e.message||"파일 확인")); } };
   reader.readAsText(file); ev.target.value="";
 }
+/* 링크로 합치기: 주소 끝에 #merge=<base64url(JSON)> 가 있으면 자동 인식 → 확인 후 누적 */
+function b64urlDecode(b){
+  b=b.replace(/-/g,"+").replace(/_/g,"/"); while(b.length%4) b+="=";
+  return decodeURIComponent(Array.prototype.map.call(atob(b),c=>"%"+("00"+c.charCodeAt(0).toString(16)).slice(-2)).join(""));
+}
+function tryHashMerge(){
+  const h=location.hash||""; const m=h.match(/[#&]merge=([^&]+)/);
+  if(!m) return;
+  let json=null;
+  try{ json=JSON.parse(b64urlDecode(m[1])); }
+  catch(e){ try{ json=JSON.parse(decodeURIComponent(m[1])); }catch(e2){} }
+  history.replaceState(null,"",location.pathname+location.search); // 새로고침 시 중복 방지
+  if(!json){ toast("링크의 리포트 데이터를 읽지 못했어요"); return; }
+  const n=(json.stocks||[]).reduce((a,s)=>a+((s.reports||[]).length),0);
+  const names=(json.stocks||[]).map(s=>s.name||s.code).join(", ");
+  if(confirm(`클로드 리포트를 앱에 추가할까요?\n\n종목: ${names}\n리포트 ${n}건`)){
+    try{ mergeData(json); switchView("list"); }catch(e){ toast("추가 실패: "+(e.message||"")); }
+  }
+}
 
 function resetAll(){
   if(!confirm("모든 종목·리포트·메모를 삭제할까요? 되돌릴 수 없어요.")) return;
@@ -1048,8 +1067,9 @@ function applySettingsUI(){
   document.getElementById("customProxyInput").value=db.settings.customProxy||"";
   document.getElementById("customProxyField").style.display = db.settings.proxy==="custom"?"block":"none";
 }
-function init(){ applySettingsUI(); render(); if(db.stocks.length) refreshAll(); }
+function init(){ applySettingsUI(); render(); tryHashMerge(); if(db.stocks.length) refreshAll(); }
 init();
+window.addEventListener("hashchange", tryHashMerge);
 </script>
 </body>
 </html>
