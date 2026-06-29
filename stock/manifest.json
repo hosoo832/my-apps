@@ -1,0 +1,14 @@
+{
+  "name": "주식 종목 보고서",
+  "short_name": "종목보고서",
+  "description": "관심 종목의 실시간 시세 + 나만의 투자 판단 메모를 한곳에",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#0d9488",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
