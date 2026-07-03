@@ -1,0 +1,14 @@
+{
+  "name": "노래 연습",
+  "short_name": "노래연습",
+  "description": "악보·가사가 흐르고 내가 부르는 음정·박자를 실시간으로 채점하는 노래 연습 앱",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#160c2e",
+  "theme_color": "#7c3aed",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
