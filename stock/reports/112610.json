@@ -1,0 +1,48 @@
+{
+  "code": "112610",
+  "market": "KOSPI",
+  "name": "씨에스윈드",
+  "updated": "2026-06-29",
+  "reports": [
+    {
+      "date": "2026-05-08",
+      "broker": "유진투자증권",
+      "stance": "buy",
+      "target": 80000,
+      "summary": "비교업체 대비 저평가 여전, 목표주가 상향. 2026년 실적 기준 PER 약 21배. 미국 매출 올해 +42% 전망.",
+      "link": "https://news.nate.com/view/20260508n14611"
+    },
+    {
+      "date": "2026-05-01",
+      "broker": "NH투자증권",
+      "stance": "buy",
+      "target": 79000,
+      "summary": "2026년 매출 2.91조·영업이익 2,990억 전망. 우호적 환율 + 베트남·중국 법인 수익성 개선으로 영익 추정 12~14% 상향. 미국 육상풍력 수주 확대 기대. (날짜 근사)",
+      "link": "https://buffettlab.co.kr/news/view.php?idx=53714"
+    },
+    {
+      "date": "2026-02-19",
+      "broker": "하나증권",
+      "stance": "buy",
+      "target": 68000,
+      "summary": "2026년 미국·유럽 중심 성장 기대. 정책 불확실성 해소 후 대규모 수주 지속.",
+      "link": "https://news.nate.com/view/20260219n05917"
+    },
+    {
+      "date": "2026-02-19",
+      "broker": "키움증권",
+      "stance": "buy",
+      "target": 62000,
+      "summary": "실적 리뷰, 투자의견 매수 재개시(Reinitiate). 작성 시점 주가 42,600원.",
+      "link": "https://bbn.kiwoom.com/research/SPdfFileView?attaFile=1770988054583.pdf"
+    },
+    {
+      "date": "2026-01-31",
+      "broker": "미래에셋증권",
+      "stance": "buy",
+      "target": 60000,
+      "summary": "육상풍력 전망 상향, 해상풍력 전망 하향으로 목표가 6만원 하향. 매수의견 유지. (날짜 근사)",
+      "link": "https://securities.miraeasset.com/bbs/download/2137474.pdf?attachmentId=2137474"
+    }
+  ]
+}
