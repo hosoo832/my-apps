@@ -256,6 +256,8 @@
         <button id="autoPullSw" class="switch on" onclick="toggleAutoPull()"><i></i></button>
       </div>
       <button class="btn ghost sm" onclick="autoPullReports(false)" style="margin-top:12px">🔄 지금 새 리포트 확인</button>
+      <button class="btn ghost sm" onclick="exportWatchlist()" style="margin-top:8px">📤 관심종목 목록 내보내기 (클로드에게)</button>
+      <p class="mini" style="margin:8px 2px 0">종목을 추가·변경했을 때 눌러서 나온 목록을 클로드 채팅에 붙여넣으면, 그 종목들을 매주 자동 리서치 대상에 넣어드려요.</p>
     </div>
 
     <div class="card">
@@ -421,6 +423,22 @@
     </div>
     <button class="btn ghost sm" onclick="document.getElementById('mergeFile').click()">📂 파일에서 합치기</button>
     <input type="file" id="mergeFile" accept="application/json" style="display:none" onchange="doMergeFile(event)" />
+  </div>
+</div>
+
+<!-- 관심종목 내보내기 모달 -->
+<div class="modal-bg" id="wlModal">
+  <div class="modal">
+    <div class="grab"></div>
+    <h3>관심종목 목록</h3>
+    <p class="sub">아래 내용을 복사해서 클로드 채팅에 붙여넣으면, 이 종목들을 매주 자동 리서치 대상에 넣어드려요.</p>
+    <div class="field">
+      <textarea id="wlText" readonly style="min-height:130px;font-size:14px" onclick="this.select()"></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn ghost" onclick="closeWl()">닫기</button>
+      <button class="btn" onclick="copyWl()">복사하기</button>
+    </div>
   </div>
 </div>
 
@@ -1021,6 +1039,23 @@ async function autoPullReports(silent){
   else if(!silent){ toast(matched?"새 리포트 없음 (이미 최신)":"발행된 리포트가 아직 없어요"); }
 }
 
+/* ---------- 관심종목 내보내기 ---------- */
+function exportWatchlist(){
+  if(db.stocks.length===0){ toast("종목을 먼저 추가하세요"); return; }
+  const lines = db.stocks.map(s=>`- ${s.name||s.code} (${MARKET_LABEL[s.market]||s.market} ${(s.code||"").toUpperCase()})`);
+  const text = "클로드야, 아래 관심종목을 매주 자동 리포트 대상에 넣어줘:\n" + lines.join("\n");
+  document.getElementById("wlText").value = text;
+  document.getElementById("wlModal").classList.add("show");
+}
+function closeWl(){ document.getElementById("wlModal").classList.remove("show"); }
+function copyWl(){
+  const ta=document.getElementById("wlText");
+  ta.select();
+  const done=()=>{ toast("복사됐어요 · 클로드 채팅에 붙여넣으세요"); closeWl(); };
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(ta.value).then(done,()=>{ try{document.execCommand("copy");}catch(e){} done(); }); }
+  else { try{document.execCommand("copy");}catch(e){} done(); }
+}
+
 /* ---------- 합치기(누적) ---------- */
 function openMerge(){ document.getElementById("mergeText").value=""; document.getElementById("mergeModal").classList.add("show"); }
 function closeMerge(){ document.getElementById("mergeModal").classList.remove("show"); }
@@ -1114,6 +1149,7 @@ function toast(msg){
 document.getElementById("editModal").addEventListener("click",e=>{ if(e.target.id==="editModal") closeEdit(); });
 document.getElementById("reportModal").addEventListener("click",e=>{ if(e.target.id==="reportModal") closeReport(); });
 document.getElementById("mergeModal").addEventListener("click",e=>{ if(e.target.id==="mergeModal") closeMerge(); });
+document.getElementById("wlModal").addEventListener("click",e=>{ if(e.target.id==="wlModal") closeWl(); });
 document.getElementById("detailModal").addEventListener("click",e=>{ if(e.target.id==="detailModal") closeDetail(); });
 
 /* ---------- 초기화 ---------- */
