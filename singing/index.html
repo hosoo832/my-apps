@@ -122,6 +122,26 @@
 
   .empty{text-align:center;color:var(--muted);padding:30px 10px;font-size:13.5px;line-height:1.6;}
   .note-tip{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:13px;padding:11px 13px;font-size:12.5px;line-height:1.55;margin-bottom:14px;}
+
+  /* 곡 만들기 모달 */
+  .method{display:flex;gap:12px;align-items:center;width:100%;text-align:left;background:#faf8fe;border:1.5px solid var(--line);border-radius:15px;padding:14px;margin-bottom:11px;transition:transform .1s;}
+  .method:active{transform:scale(.99);}
+  .method .mi{width:46px;height:46px;border-radius:13px;background:linear-gradient(135deg,#f3e8ff,#fce7f3);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;}
+  .method b{display:block;font-size:15px;color:var(--text);}
+  .method span{display:block;font-size:12px;color:var(--muted);margin-top:3px;line-height:1.45;}
+  .rec-bpm,.rec-grid{display:flex;align-items:center;gap:10px;font-size:13.5px;font-weight:700;margin-bottom:12px;flex-wrap:wrap;}
+  .rec-bpm input[type=range]{flex:1;min-width:110px;accent-color:var(--violet);}
+  .rec-grid select{padding:8px 10px;border:1.5px solid var(--line);border-radius:10px;background:#faf9fd;}
+  .tap{background:#f3e8ff;color:var(--violet-d);border-radius:10px;padding:9px 12px;font-weight:800;font-size:12.5px;}
+  .rec-stage{background:linear-gradient(180deg,#1c1040,#2a1656);border-radius:16px;padding:10px;margin-bottom:12px;text-align:center;}
+  #recCanvas,#prevCanvas{display:block;width:100%;height:150px;border-radius:10px;}
+  .rec-hint{color:#c9bce6;font-size:12px;margin-top:8px;line-height:1.5;}
+  .rec-controls{display:flex;gap:9px;}
+  .rec-controls .save,.prev-btns .save{margin-top:0;}
+  .save.recon{background:linear-gradient(135deg,#ef4444,#b91c1c);}
+  .prev-meta{font-size:13px;color:var(--muted);font-weight:700;margin:10px 0 10px;text-align:center;}
+  .prev-btns{display:flex;gap:9px;}
+  input[type=file]{width:100%;padding:14px;border:1.5px dashed #d9cff0;border-radius:12px;background:#faf9fd;font-size:14px;margin-bottom:10px;}
 </style>
 </head>
 <body>
@@ -142,7 +162,7 @@
     <div id="micTip" class="note-tip" style="display:none;">🎙️ 채점하려면 마이크 권한이 필요해요. 연습 시작 시 브라우저가 물어보면 “허용”을 눌러주세요.</div>
     <div class="sec-title">연습할 곡을 골라요</div>
     <div id="songList"></div>
-    <button class="addbtn" id="addSongBtn">＋ 내 노래(악보) 추가</button>
+    <button class="addbtn" id="addSongBtn">＋ 내 노래 추가 (불러서 만들기 · MIDI)</button>
   </section>
 
   <!-- 연습 화면 -->
@@ -185,27 +205,69 @@
   </section>
 </main>
 
-<!-- 곡 추가 모달 -->
+<!-- 곡 만들기 모달 (타이핑 없이) -->
 <div class="modal-bg" id="modalBg">
-  <div class="modal">
-    <h3>내 노래(악보) 추가</h3>
-    <div class="mrow">
-      <div class="fld" style="flex:2;"><label>제목</label><input id="fTitle" placeholder="예: 우리 동요" /></div>
-      <div class="fld"><label>빠르기(BPM)</label><input id="fBpm" type="number" value="90" /></div>
+  <div class="modal" id="createModal">
+
+    <!-- 1) 방법 선택 -->
+    <div class="cstep" id="stepChoose">
+      <h3>내 노래 만들기</h3>
+      <button class="method" id="mRecord">
+        <div class="mi">🎤</div>
+        <div><b>불러서 만들기</b><span>메트로놈에 맞춰 멜로디를 흥얼거리면(라~라~) 음정을 듣고 자동으로 악보로 옮겨줘요. 타이핑 없음.</span></div>
+      </button>
+      <button class="method" id="mMidi">
+        <div class="mi">📁</div>
+        <div><b>MIDI · 노래방(.kar) 파일</b><span>노래의 MIDI 파일을 고르면 음·박자·가사를 자동으로 읽어와요. (.kar은 한글 가사까지)</span></div>
+      </button>
+      <button class="save" id="closeCreate" style="background:#eee;color:#555;">닫기</button>
     </div>
-    <div class="fld">
-      <label>악보 입력</label>
-      <textarea id="fNotes" placeholder="C4:반:1 C4:짝:1 G4:반:1 G4:짝:1 A4:작:1 A4:은:1 G4:별:2"></textarea>
-      <div class="hint">
-        음 하나 = <code>음높이:가사:박자</code> 를 띄어쓰기로 나열해요.<br>
-        • 음높이: <code>C4 D4 E4 F4 G4 A4 B4</code> (숫자 클수록 높은 음, 가운데 도=<code>C4</code>). 반음은 <code>C#4</code>, 쉼표는 <code>R</code>.<br>
-        • 박자: 4분음표=<code>1</code>, 2분음표=<code>2</code>, 8분음표=<code>0.5</code> (생략하면 1).<br>
-        • 가사 없으면 비워요 → <code>G4::1</code>
+
+    <!-- 2) 불러서 만들기 -->
+    <div class="cstep" id="stepRecord" style="display:none">
+      <h3>🎤 불러서 만들기</h3>
+      <div class="rec-bpm">빠르기 <b><span id="recBpmVal">90</span> BPM</b>
+        <input type="range" id="recBpm" min="50" max="170" value="90" />
+        <button class="tap" id="tapTempo">👆 탭 템포</button>
+      </div>
+      <div class="rec-grid">가장 짧은 음
+        <select id="recGrid">
+          <option value="1">4분음표</option>
+          <option value="0.5" selected>8분음표</option>
+          <option value="0.25">16분음표</option>
+        </select>
+      </div>
+      <div class="rec-stage">
+        <canvas id="recCanvas"></canvas>
+        <div class="rec-hint" id="recHint">“녹음 시작”을 누르면 4박 카운트 뒤 메트로놈이 울려요. 박자에 맞춰 멜로디를 또렷하게 흥얼거리세요.</div>
+      </div>
+      <div class="rec-controls">
+        <button class="save" id="recStart">● 녹음 시작</button>
+        <button class="save" id="recBack" style="background:#eee;color:#555;">뒤로</button>
       </div>
     </div>
-    <div class="err" id="fErr"></div>
-    <button class="save" id="saveSongBtn">저장</button>
-    <button class="save" id="cancelSongBtn" style="background:#eee;color:#555;margin-top:8px;">취소</button>
+
+    <!-- 3) MIDI 가져오기 -->
+    <div class="cstep" id="stepMidi" style="display:none">
+      <h3>📁 MIDI · 노래방 파일 가져오기</h3>
+      <input type="file" id="midiFile" accept=".mid,.midi,.kar" />
+      <div class="hint">노래 제목으로 <b>“(곡명) midi”</b> 또는 <b>“(곡명) kar”</b> 를 검색하면 파일을 찾을 수 있어요. 멜로디가 가장 뚜렷한 트랙을 자동으로 골라 음·박자·가사를 읽어옵니다.</div>
+      <div class="err" id="midiErr"></div>
+      <button class="save" id="midiBack" style="background:#eee;color:#555;margin-top:12px;">뒤로</button>
+    </div>
+
+    <!-- 4) 미리보기 & 저장 -->
+    <div class="cstep" id="stepPreview" style="display:none">
+      <h3>이렇게 만들어졌어요</h3>
+      <div class="rec-stage"><canvas id="prevCanvas"></canvas></div>
+      <div class="prev-meta" id="prevMeta"></div>
+      <div class="fld"><label>곡 제목</label><input id="prevTitle" placeholder="예: 내가 부른 노래" /></div>
+      <div class="prev-btns">
+        <button class="save" id="prevSave">저장하기</button>
+        <button class="save" id="prevRedo" style="background:#eee;color:#555;">다시</button>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -217,7 +279,8 @@
       <p><b>1. 곡을 고르고 ▶연습 시작</b><br>3·2·1 카운트 뒤 악보가 흐르고 재생선(가운데 세로선)이 지나갑니다. 그 위치의 음을 소리 내어 부르면 돼요.</p>
       <p><b>2. 실시간 채점</b><br>마이크로 내 목소리의 음정을 듣고, 악보의 음·박자와 맞으면 초록, 틀리면 빨강으로 표시돼요. 위쪽 “내 음정” 눈금이 ▲(높음)/▼(낮음)을 알려줘요.</p>
       <p><b>3. 옵션</b><br>· <b>멜로디 듣기</b>로 먼저 음을 익히세요.<br>· <b>옥타브 무시</b>를 켜면 한 옥타브 높거나 낮게 불러도 맞다고 인정해요(음역대가 다른 사람용).<br>· <b>천천히</b>는 70% 속도로 연습.</p>
-      <p style="color:var(--muted);font-size:12.5px;"><b>참고:</b> 실제 가수 음원(mp3)은 넣을 수 없어요. 브라우저만으로 반주에서 노래 멜로디를 뽑아내지 못하기 때문이에요. 대신 “음+박자+가사” 악보로 연습합니다. 기본 동요 외에 직접 악보를 추가할 수 있어요.</p>
+      <p><b>4. 내 노래 추가 (타이핑 없이)</b><br>목록 아래 <b>＋</b> 버튼 →<br>· <b>🎤 불러서 만들기</b>: 메트로놈에 맞춰 멜로디를 흥얼거리면 음정을 듣고 자동으로 악보로 옮겨줘요.<br>· <b>📁 MIDI·노래방(.kar)</b>: 노래의 MIDI 파일을 고르면 음·박자·가사를 자동으로 읽어와요.</p>
+      <p style="color:var(--muted);font-size:12.5px;"><b>참고:</b> 실제 가수 음원(mp3)에서 브라우저만으로 보컬 멜로디를 뽑아낼 수는 없어요. 그래서 노래를 “음+박자+가사” 악보로 다룹니다. 유튜브 등으로 들은 멜로디를 <b>흥얼거려 옮기거나</b>, 그 곡의 <b>MIDI 파일을 가져오면</b> 됩니다. 내 기기에서 혼자 연습하는 용도예요.</p>
     </div>
     <button class="save" id="helpCloseBtn" style="margin-top:6px;">닫기</button>
   </div>
@@ -788,25 +851,200 @@ function bindSwitch(el,key){
 bindSwitch($("#swRef"),"ref"); bindSwitch($("#swMetro"),"metro");
 bindSwitch($("#swOct"),"oct"); bindSwitch($("#swSlow"),"slow");
 
-// 곡 추가 모달
+/* ============ 곡 만들기 (타이핑 없이) ============ */
 const modalBg=$("#modalBg");
-$("#addSongBtn").onclick=()=>{ $("#fErr").textContent=""; modalBg.classList.add("show"); };
-$("#cancelSongBtn").onclick=()=>modalBg.classList.remove("show");
-modalBg.addEventListener("click",e=>{ if(e.target===modalBg) modalBg.classList.remove("show"); });
-$("#saveSongBtn").onclick=()=>{
-  const title=$("#fTitle").value.trim();
-  const bpm=parseInt($("#fBpm").value,10)||90;
-  const raw=$("#fNotes").value.trim();
-  const err=$("#fErr");
-  if(!title){ err.textContent="제목을 입력해주세요."; return; }
-  if(!raw){ err.textContent="악보를 입력해주세요."; return; }
-  let notes;
-  try{ notes=parseNotes(raw); }catch(e){ err.textContent=e.message; return; }
-  const song={ id:"c"+Date.now(), custom:true, emoji:"🎵", title, bpm, keyName:"내 곡", notes };
-  customSongs.push(song); saveCustom();
-  modalBg.classList.remove("show");
-  $("#fTitle").value=""; $("#fNotes").value="";
-  renderList();
+let pendingSong=null;
+function showStep(id){ document.querySelectorAll("#createModal .cstep").forEach(s=>s.style.display="none"); $("#"+id).style.display="block"; }
+function openCreate(){ pendingSong=null; showStep("stepChoose"); modalBg.classList.add("show"); }
+$("#addSongBtn").onclick=openCreate;
+$("#closeCreate").onclick=()=>modalBg.classList.remove("show");
+$("#mRecord").onclick=()=>{ showStep("stepRecord"); requestAnimationFrame(()=>drawRecLive($("#recCanvas").getContext("2d"),$("#recCanvas"),-99,null)); };
+$("#mMidi").onclick=()=>{ $("#midiErr").textContent=""; $("#midiFile").value=""; showStep("stepMidi"); };
+$("#recBack").onclick=()=>{ recStopFn(true); showStep("stepChoose"); };
+$("#midiBack").onclick=()=>showStep("stepChoose");
+$("#prevRedo").onclick=()=>showStep("stepChoose");
+modalBg.addEventListener("click",e=>{ if(e.target===modalBg){ recStopFn(true); modalBg.classList.remove("show"); } });
+
+/* ---- 미리보기 ---- */
+function openPreview(){
+  showStep("stepPreview");
+  $("#prevTitle").value=pendingSong.title||"";
+  const nc=pendingSong.notes.filter(n=>n.midi!=null).length;
+  const tb=pendingSong.notes.reduce((a,n)=>a+n.beats,0);
+  $("#prevMeta").textContent=`${pendingSong.bpm} BPM · ${nc}음 · 약 ${Math.round(tb*60/pendingSong.bpm)}초`;
+  requestAnimationFrame(()=>drawMelodyStatic($("#prevCanvas"), pendingSong.notes));
+}
+$("#prevSave").onclick=()=>{
+  if(!pendingSong) return;
+  pendingSong.title=$("#prevTitle").value.trim()||"내 노래";
+  pendingSong.id="c"+Date.now();
+  customSongs.push(pendingSong); saveCustom();
+  modalBg.classList.remove("show"); renderList();
+};
+function drawMelodyStatic(cvs, notes){
+  const dpr=window.devicePixelRatio||1, W=cvs.clientWidth||300, H=150;
+  cvs.width=W*dpr; cvs.height=H*dpr; const g=cvs.getContext("2d"); g.setTransform(dpr,0,0,dpr,0,0);
+  g.clearRect(0,0,W,H);
+  const ms=notes.filter(n=>n.midi!=null).map(n=>n.midi); if(!ms.length) return;
+  let lo=Math.min(...ms)-2, hi=Math.max(...ms)+2; if(hi-lo<8){ hi=lo+8; }
+  const tb=Math.max(1,notes.reduce((a,n)=>a+n.beats,0)), padX=8, pxb=(W-2*padX)/tb;
+  const yM=m=>{ const s0=absStep(lo),s1=absStep(hi); return H-16-(absStep(m)-s0)/(s1-s0)*(H-32); };
+  g.strokeStyle="rgba(255,255,255,.16)"; g.lineWidth=1;
+  [64,67,71,74,77].forEach(lm=>{ if(lm>=lo&&lm<=hi){ const y=yM(lm); g.beginPath(); g.moveTo(0,y); g.lineTo(W,y); g.stroke(); } });
+  let x=padX;
+  for(const n of notes){ const w=n.beats*pxb; if(n.midi!=null){ const y=yM(n.midi); g.fillStyle="rgba(168,85,247,.92)"; roundRect(g,x+1,y-4,Math.max(4,w-2),8,4); g.fill(); if(n.lyric){ g.fillStyle="rgba(228,216,250,.8)"; g.font="10px 'Apple SD Gothic Neo',sans-serif"; g.textAlign="center"; g.textBaseline="alphabetic"; g.fillText(n.lyric,x+w/2,H-4); } } x+=w; }
+}
+
+/* ---- 불러서 만들기 (녹음 → 자동 채보) ---- */
+const recState={frames:[],recording:false,bpm:90,grid:0.5,rec0:0,raf:null};
+$("#recBpm").oninput=()=>$("#recBpmVal").textContent=$("#recBpm").value;
+let taps=[];
+$("#tapTempo").onclick=()=>{
+  const now=performance.now(); taps.push(now); taps=taps.filter(t=>now-t<3000);
+  if(taps.length>=2){ let s=0; for(let i=1;i<taps.length;i++) s+=taps[i]-taps[i-1];
+    let bpm=Math.round(60000/(s/(taps.length-1))); bpm=Math.max(50,Math.min(170,bpm));
+    $("#recBpm").value=bpm; $("#recBpmVal").textContent=bpm; }
+};
+$("#recStart").onclick=()=>{ if(recState.recording) recStopFn(false); else recStartFn(); };
+async function recStartFn(){
+  try{ await ensureMic(); }catch(e){ alert("마이크를 켤 수 없어요. 브라우저 권한을 확인해주세요."); return; }
+  recState.frames=[]; recState.recording=true;
+  recState.bpm=parseInt($("#recBpm").value,10); recState.grid=parseFloat($("#recGrid").value);
+  const bd=60/recState.bpm; clearScheduled();
+  const t0=AC.currentTime+0.15, rec0=t0+4*bd; recState.rec0=rec0;
+  for(let b=-4;b<128;b++) playClick(rec0+b*bd, ((b%4)+4)%4===0); // 카운트인 + 메트로놈
+  $("#recStart").innerHTML="■ 끝내고 만들기"; $("#recStart").classList.add("recon");
+  $("#recHint").textContent="흥얼거리는 중… 다 부르면 “끝내고 만들기”를 누르세요.";
+  const cvs=$("#recCanvas"), g=cvs.getContext("2d");
+  const loop2=()=>{
+    if(!recState.recording) return;
+    analyser.getFloatTimeDomainData(buf);
+    const f=autoCorrelate(buf,AC.sampleRate);
+    const t=AC.currentTime-rec0, midi=f>0?freqToMidi(f):null;
+    if(t>=0) recState.frames.push({t,midi});
+    drawRecLive(g,cvs,t,midi);
+    recState.raf=requestAnimationFrame(loop2);
+  };
+  recState.raf=requestAnimationFrame(loop2);
+}
+function recStopFn(silent){
+  if(!recState.recording){ return; }
+  recState.recording=false;
+  if(recState.raf) cancelAnimationFrame(recState.raf);
+  clearScheduled();
+  $("#recStart").innerHTML="● 녹음 시작"; $("#recStart").classList.remove("recon");
+  $("#recHint").textContent="“녹음 시작”을 누르면 4박 카운트 뒤 메트로놈이 울려요. 박자에 맞춰 멜로디를 또렷하게 흥얼거리세요.";
+  if(silent) return;
+  const notes=transcribeFrames(recState.frames, recState.bpm, recState.grid);
+  if(!notes.some(n=>n.midi!=null)){ alert("음정을 충분히 감지하지 못했어요. 조용한 곳에서 “라~라~”처럼 또렷하게 불러보세요."); return; }
+  pendingSong={ custom:true, emoji:"🎤", title:"", bpm:recState.bpm, keyName:"녹음 곡", notes };
+  openPreview();
+}
+function drawRecLive(g,cvs,t,midi){
+  const dpr=window.devicePixelRatio||1, W=cvs.clientWidth||300, H=cvs.clientHeight||150;
+  if(cvs.width!==Math.round(W*dpr)){ cvs.width=W*dpr; cvs.height=H*dpr; g.setTransform(dpr,0,0,dpr,0,0); }
+  g.clearRect(0,0,W,H);
+  if(t<0){ g.fillStyle="rgba(255,255,255,.85)"; g.font="14px 'Apple SD Gothic Neo',sans-serif"; g.textAlign="center"; g.textBaseline="middle";
+    g.fillText(t<-90?"멜로디를 흥얼거려 악보를 만들어요":("준비… "+Math.max(1,Math.ceil(-t))),W/2,H/2); return; }
+  g.fillStyle="rgba(255,255,255,.45)"; g.font="12px sans-serif"; g.textAlign="left"; g.textBaseline="top"; g.fillText(t.toFixed(1)+"초",8,8);
+  if(midi!=null){ const r=Math.max(0,Math.min(1,(midi-48)/36)); const y=H-10-r*(H-40);
+    g.fillStyle="#38bdf8"; g.shadowColor="#38bdf8"; g.shadowBlur=12; g.beginPath(); g.arc(W/2,y,10,0,Math.PI*2); g.fill(); g.shadowBlur=0;
+    g.fillStyle="#fff"; g.font="bold 20px 'Apple SD Gothic Neo',sans-serif"; g.textAlign="center"; g.textBaseline="middle"; g.fillText(midiToName(midi),W/2,y-22); }
+  else { g.fillStyle="rgba(255,255,255,.4)"; g.font="14px 'Apple SD Gothic Neo',sans-serif"; g.textAlign="center"; g.textBaseline="middle"; g.fillText("🎵 소리를 내보세요",W/2,H/2); }
+}
+// 녹음 프레임 → 음표 (중앙값 필터 + 박자 그리드 양자화)
+function transcribeFrames(frames, bpm, grid){
+  const bd=60/bpm;
+  const snapped=frames.map(f=> f.midi==null?null:Math.round(f.midi));
+  const med=[];
+  for(let i=0;i<snapped.length;i++){ const w=[]; for(let j=Math.max(0,i-2);j<=Math.min(snapped.length-1,i+2);j++) w.push(snapped[j]);
+    const nn=w.filter(x=>x!=null).sort((a,b)=>a-b); med.push(nn.length?nn[Math.floor(nn.length/2)]:null); }
+  const segs=[]; let cur=null;
+  for(let i=0;i<med.length;i++){ const v=med[i], t=frames[i].t;
+    if(!cur||cur.v!==v){ if(cur) cur.tEnd=t; cur={v,tStart:t,tEnd:t}; segs.push(cur); } else cur.tEnd=t; }
+  if(cur) cur.tEnd=(frames.length?frames[frames.length-1].t:0)+0.016;
+  const notes=[]; let started=false;
+  for(const s of segs){ let db=Math.round(((s.tEnd-s.tStart)/bd)/grid)*grid;
+    if(db<grid) continue;
+    if(s.v==null){ if(started) notes.push({midi:null,beats:db,lyric:""}); continue; }
+    started=true; notes.push({midi:s.v,beats:db,lyric:""}); }
+  while(notes.length && notes[notes.length-1].midi==null) notes.pop();
+  const merged=[]; for(const n of notes){ const last=merged[merged.length-1];
+    if(last&&last.midi===n.midi&&n.midi!=null) last.beats+=n.beats; else merged.push({...n}); }
+  return merged;
+}
+
+/* ---- MIDI · .kar 파서 ---- */
+function decodeBytes(bytes){
+  try{ return new TextDecoder('utf-8',{fatal:true}).decode(bytes); }
+  catch(e){ try{ return new TextDecoder('euc-kr').decode(bytes); }catch(e2){ let s=""; bytes.forEach(b=>s+=String.fromCharCode(b)); return s; } }
+}
+function parseVarLen(dv,pos){ let v=0,b; do{ b=dv.getUint8(pos++); v=(v<<7)|(b&0x7f); }while(b&0x80); return [v,pos]; }
+function parseMIDI(ab){
+  const dv=new DataView(ab);
+  if(dv.getUint32(0)!==0x4d546864) throw new Error("MIDI 파일이 아니에요.");
+  const ntrks=dv.getUint16(10), division=dv.getUint16(12);
+  if(division&0x8000) throw new Error("이 MIDI 형식은 지원하지 않아요.");
+  const ppq=division||480; let pos=14, tempoBPM=120; const tracks=[];
+  for(let t=0;t<ntrks && pos+8<=ab.byteLength;t++){
+    if(dv.getUint32(pos)!==0x4d54726b){ const l=dv.getUint32(pos+4); pos+=8+l; t--; continue; }
+    const len=dv.getUint32(pos+4); pos+=8; const end=Math.min(pos+len,ab.byteLength);
+    let tick=0,status=0; const on={}, notes=[], lyrics=[];
+    while(pos<end){
+      let dt; [dt,pos]=parseVarLen(dv,pos); tick+=dt;
+      let b=dv.getUint8(pos); if(b&0x80){ status=b; pos++; }
+      const type=status&0xf0;
+      if(status===0xff){ const mtype=dv.getUint8(pos++); let ml; [ml,pos]=parseVarLen(dv,pos);
+        if(mtype===0x51&&ml===3){ const us=(dv.getUint8(pos)<<16)|(dv.getUint8(pos+1)<<8)|dv.getUint8(pos+2); tempoBPM=60000000/us; }
+        else if(mtype===0x05||mtype===0x01){ lyrics.push({tick,bytes:new Uint8Array(ab,pos,ml).slice()}); }
+        pos+=ml; }
+      else if(status===0xf0||status===0xf7){ let sl; [sl,pos]=parseVarLen(dv,pos); pos+=sl; }
+      else if(type===0x90){ const note=dv.getUint8(pos++),vel=dv.getUint8(pos++); if(vel>0){ (on[note]=on[note]||[]).push({tick,chan:status&0x0f}); } else closeMidiNote(on,note,tick,notes); }
+      else if(type===0x80){ const note=dv.getUint8(pos++); pos++; closeMidiNote(on,note,tick,notes); }
+      else if(type===0xa0||type===0xb0||type===0xe0){ pos+=2; }
+      else if(type===0xc0||type===0xd0){ pos+=1; }
+      else { pos++; }
+    }
+    pos=end; tracks.push({notes,lyrics});
+  }
+  return {ppq,tempoBPM,tracks};
+}
+function closeMidiNote(on,note,tick,notes){ const a=on[note]; if(a&&a.length){ const s=a.shift(); if(tick>s.tick) notes.push({midi:note,startTick:s.tick,durTick:tick-s.tick,chan:s.chan}); } }
+function midiToSong(parsed,fname){
+  const {ppq,tempoBPM,tracks}=parsed;
+  let best=null,bestScore=-1;
+  for(const tr of tracks){ const mel=tr.notes.filter(n=>n.chan!==9); if(!mel.length) continue;
+    const avg=mel.reduce((a,n)=>a+n.midi,0)/mel.length;
+    const hasLyric=tr.lyrics.some(l=>{ const s=decodeBytes(l.bytes).replace(/[@\/\\\s\r\n]/g,''); return s.length>0; });
+    const score=mel.length+(hasLyric?100000:0)+avg;
+    if(score>bestScore){ bestScore=score; best=tr; } }
+  if(!best) throw new Error("멜로디 트랙을 찾지 못했어요.");
+  let ns=best.notes.filter(n=>n.chan!==9).slice().sort((a,b)=>a.startTick-b.startTick||b.midi-a.midi);
+  const mono=[];
+  for(const n of ns){ const last=mono[mono.length-1];
+    if(last){ const le=last.startTick+last.durTick;
+      if(n.startTick<le){ if(n.midi>last.midi){ last.durTick=n.startTick-last.startTick; if(last.durTick<=0) mono.pop(); } else continue; } }
+    mono.push({...n}); }
+  const lyr=best.lyrics.map(l=>({tick:l.tick,text:decodeBytes(l.bytes),used:false}))
+    .filter(l=>{ const c=l.text.replace(/[\r\n]/g,''); return c && c.trim()[0]!=="@"; });
+  const q=0.25, snap=x=>Math.round(x/q)*q;
+  const notes=[]; let prevEnd=mono.length?snap(mono[0].startTick/ppq):0; const base=prevEnd; prevEnd=0;
+  for(const n of mono){
+    const sb=snap(n.startTick/ppq)-base, db=Math.max(q,snap(n.durTick/ppq));
+    if(sb>prevEnd+q*0.5) notes.push({midi:null,beats:+(sb-prevEnd).toFixed(3),lyric:""});
+    let lyric="",bd=1e9,bl=null;
+    for(const l of lyr){ if(l.used) continue; const d=Math.abs(l.tick/ppq-n.startTick/ppq); if(d<bd&&d<0.75){ bd=d; bl=l; } }
+    if(bl){ bl.used=true; lyric=bl.text.replace(/[@\/\\]/g,"").replace(/[\r\n]+/g,"").trim(); }
+    notes.push({midi:n.midi,beats:db,lyric}); prevEnd=(sb>prevEnd?sb:prevEnd)+db;
+  }
+  if(!notes.some(n=>n.midi!=null)) throw new Error("음표를 찾지 못했어요.");
+  return { custom:true, emoji:"🎵", title:(fname||"MIDI 곡").replace(/\.(midi?|kar)$/i,""), bpm:Math.max(40,Math.min(220,Math.round(tempoBPM))), keyName:"가져온 곡", notes };
+}
+$("#midiFile").onchange=async(e)=>{
+  const file=e.target.files[0]; if(!file) return;
+  $("#midiErr").textContent="읽는 중…";
+  try{ const ab=await file.arrayBuffer(); pendingSong=midiToSong(parseMIDI(ab),file.name); $("#midiErr").textContent=""; openPreview(); }
+  catch(err){ $("#midiErr").textContent="읽지 못했어요: "+err.message; }
 };
 
 // 도움말
