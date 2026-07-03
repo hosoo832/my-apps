@@ -125,6 +125,11 @@
   .stat .v{font-size:18px;font-weight:800;margin-top:3px;font-variant-numeric:tabular-nums;}
 
   .mini{font-size:12px;color:var(--muted);line-height:1.6;}
+  .row-between{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+  .switch{width:46px;height:27px;border-radius:99px;background:#d4dae8;position:relative;transition:.2s;flex-shrink:0;border:none;padding:0;}
+  .switch.on{background:var(--green);}
+  .switch i{position:absolute;top:3px;left:3px;width:21px;height:21px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2);}
+  .switch.on i{left:22px;}
 
   /* 상세 */
   .det-head{display:flex;align-items:center;gap:10px;margin-bottom:4px;}
@@ -244,7 +249,19 @@
     </div>
 
     <div class="card">
-      <h2>🤖 클로드 리포트 합치기</h2>
+      <h2>🤖 클로드 자동 리포트</h2>
+      <p class="mini" style="margin:-4px 0 10px">켜두면, 앱을 열 때 <b>클로드가 발행한 새 리포트를 자동으로 받아</b> 각 종목에 쌓아요. (개인 정보는 안 올라가고, 공개 리서치 요약만 받아옵니다.)</p>
+      <div class="row-between">
+        <span style="font-weight:700;font-size:14px">자동으로 받기</span>
+        <button id="autoPullSw" class="switch on" onclick="toggleAutoPull()"><i></i></button>
+      </div>
+      <button class="btn ghost sm" onclick="autoPullReports(false)" style="margin-top:12px">🔄 지금 새 리포트 확인</button>
+      <button class="btn ghost sm" onclick="exportWatchlist()" style="margin-top:8px">📤 관심종목 목록 내보내기 (클로드에게)</button>
+      <p class="mini" style="margin:8px 2px 0">종목을 추가·변경했을 때 눌러서 나온 목록을 클로드 채팅에 붙여넣으면, 그 종목들을 매주 자동 리서치 대상에 넣어드려요.</p>
+    </div>
+
+    <div class="card">
+      <h2>📋 클로드 리포트 합치기 (수동)</h2>
       <p class="mini" style="margin:-4px 0 10px">클로드가 만들어 준 리포트(JSON)를 여기에 붙여넣으면, <b>기존 종목·기록을 지우지 않고 그 위에 쌓입니다</b>. 같은 리포트는 중복으로 안 들어가요.</p>
       <button class="btn ghost sm" onclick="openMerge()">＋ 리포트 붙여넣어 합치기</button>
     </div>
@@ -409,6 +426,22 @@
   </div>
 </div>
 
+<!-- 관심종목 내보내기 모달 -->
+<div class="modal-bg" id="wlModal">
+  <div class="modal">
+    <div class="grab"></div>
+    <h3>관심종목 목록</h3>
+    <p class="sub">아래 내용을 복사해서 클로드 채팅에 붙여넣으면, 이 종목들을 매주 자동 리서치 대상에 넣어드려요.</p>
+    <div class="field">
+      <textarea id="wlText" readonly style="min-height:130px;font-size:14px" onclick="this.select()"></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn ghost" onclick="closeWl()">닫기</button>
+      <button class="btn" onclick="copyWl()">복사하기</button>
+    </div>
+  </div>
+</div>
+
 <!-- 상세 보고서 모달 -->
 <div class="modal-bg" id="detailModal">
   <div class="modal" id="detailInner"></div>
@@ -445,6 +478,7 @@ function load(){
   if(!d.settings || typeof d.settings!=="object") d.settings = {};
   if(!d.settings.proxy) d.settings.proxy = "auto";
   if(typeof d.settings.customProxy!=="string") d.settings.customProxy = "";
+  if(typeof d.settings.autoPull!=="boolean") d.settings.autoPull = true;
   d.v = 1;
   return d;
 }
@@ -966,6 +1000,62 @@ function importData(ev){
   };
   reader.readAsText(file); ev.target.value="";
 }
+/* ---------- 자동 리포트 받기 (클로드 발행 파일) ---------- */
+function toggleAutoPull(){
+  db.settings.autoPull = !db.settings.autoPull;
+  document.getElementById("autoPullSw").className = "switch" + (db.settings.autoPull?" on":"");
+  save();
+  toast(db.settings.autoPull?"자동 받기 켬":"자동 받기 끔");
+  if(db.settings.autoPull) autoPullReports(false);
+}
+async function autoPullReports(silent){
+  if(db.stocks.length===0){ if(!silent) toast("종목을 먼저 추가하세요"); return; }
+  if(!silent){ const b=document.getElementById("autoPullSw"); }
+  let added=0, matched=0;
+  await Promise.all(db.stocks.map(async s=>{
+    const code=(s.code||"").trim(); if(!code) return;
+    try{
+      const res=await fetch("./reports/"+encodeURIComponent(code.toUpperCase())+".json?ts="+Date.now(),{cache:"no-store"});
+      if(!res.ok) return;
+      const d=await res.json();
+      const reps=Array.isArray(d.reports)?d.reports:[];
+      if(!reps.length) return;
+      matched++;
+      if((!s.name||!s.name.trim()) && d.name) s.name=d.name;
+      if(!Array.isArray(s.reports)) s.reports=[];
+      const seen=new Set(s.reports.map(repKey));
+      reps.forEach(r=>{
+        const rr={ date:r.date||todayStr(), broker:(r.broker||"").toString().trim(),
+          stance:normStance(r.stance),
+          target:(r.target!=null&&r.target!==""&&!isNaN(Number(r.target)))?Number(r.target):null,
+          summary:(r.summary||"").toString().trim(), link:(r.link||"").toString().trim() };
+        const k=repKey(rr); if(seen.has(k)) return;
+        seen.add(k); s.reports.push(Object.assign({id:uid(),created:Date.now(),auto:true},rr)); added++;
+      });
+      if(added) s.updated=Date.now();
+    }catch(e){}
+  }));
+  if(added){ save(); render(); toast(`클로드 리포트 ${added}건 자동 추가됨`); }
+  else if(!silent){ toast(matched?"새 리포트 없음 (이미 최신)":"발행된 리포트가 아직 없어요"); }
+}
+
+/* ---------- 관심종목 내보내기 ---------- */
+function exportWatchlist(){
+  if(db.stocks.length===0){ toast("종목을 먼저 추가하세요"); return; }
+  const lines = db.stocks.map(s=>`- ${s.name||s.code} (${MARKET_LABEL[s.market]||s.market} ${(s.code||"").toUpperCase()})`);
+  const text = "클로드야, 아래 관심종목을 매주 자동 리포트 대상에 넣어줘:\n" + lines.join("\n");
+  document.getElementById("wlText").value = text;
+  document.getElementById("wlModal").classList.add("show");
+}
+function closeWl(){ document.getElementById("wlModal").classList.remove("show"); }
+function copyWl(){
+  const ta=document.getElementById("wlText");
+  ta.select();
+  const done=()=>{ toast("복사됐어요 · 클로드 채팅에 붙여넣으세요"); closeWl(); };
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(ta.value).then(done,()=>{ try{document.execCommand("copy");}catch(e){} done(); }); }
+  else { try{document.execCommand("copy");}catch(e){} done(); }
+}
+
 /* ---------- 합치기(누적) ---------- */
 function openMerge(){ document.getElementById("mergeText").value=""; document.getElementById("mergeModal").classList.add("show"); }
 function closeMerge(){ document.getElementById("mergeModal").classList.remove("show"); }
@@ -1059,6 +1149,7 @@ function toast(msg){
 document.getElementById("editModal").addEventListener("click",e=>{ if(e.target.id==="editModal") closeEdit(); });
 document.getElementById("reportModal").addEventListener("click",e=>{ if(e.target.id==="reportModal") closeReport(); });
 document.getElementById("mergeModal").addEventListener("click",e=>{ if(e.target.id==="mergeModal") closeMerge(); });
+document.getElementById("wlModal").addEventListener("click",e=>{ if(e.target.id==="wlModal") closeWl(); });
 document.getElementById("detailModal").addEventListener("click",e=>{ if(e.target.id==="detailModal") closeDetail(); });
 
 /* ---------- 초기화 ---------- */
@@ -1066,8 +1157,13 @@ function applySettingsUI(){
   document.getElementById("proxySel").value=db.settings.proxy;
   document.getElementById("customProxyInput").value=db.settings.customProxy||"";
   document.getElementById("customProxyField").style.display = db.settings.proxy==="custom"?"block":"none";
+  document.getElementById("autoPullSw").className = "switch" + (db.settings.autoPull?" on":"");
 }
-function init(){ applySettingsUI(); render(); tryHashMerge(); if(db.stocks.length) refreshAll(); }
+function init(){
+  applySettingsUI(); render(); tryHashMerge();
+  if(db.stocks.length) refreshAll();
+  if(db.settings.autoPull) autoPullReports(true);
+}
 init();
 window.addEventListener("hashchange", tryHashMerge);
 </script>
