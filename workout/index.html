@@ -104,6 +104,21 @@
   details.tips li{font-size:13px;color:#5b5750;line-height:1.6;margin:0 0 9px 18px}
   details.tips li b{color:var(--ink)}
 
+  /* ---------- record ---------- */
+  .rrow{background:var(--card);border-radius:14px;padding:12px 13px;box-shadow:var(--shadow);margin-bottom:9px;border:1.5px solid transparent}
+  .rrow.filled{border-color:var(--accent2);background:#f3faf8}
+  .rrow .rn{font-size:15px;font-weight:700}
+  .rrow .last{font-size:11.5px;color:var(--muted);margin-top:3px}
+  .rrow .last b{color:var(--accent2)}
+  .rin{display:flex;gap:7px;align-items:center;margin-top:9px}
+  .rin input{width:100%;min-width:0;border:1.5px solid var(--line);border-radius:10px;padding:9px;font-family:inherit;font-size:15px;background:#faf8f4;text-align:center}
+  .rin input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+  .rin .unit{font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap}
+  .dashbtn{width:100%;margin-top:4px;border:1.5px dashed var(--line);background:#faf8f4;color:#5b5750;font-family:inherit;font-weight:700;font-size:14px;padding:12px;border-radius:12px;cursor:pointer}
+  .dashbtn:active{background:var(--paper)}
+  #r-customform{background:var(--card);border-radius:14px;padding:13px;box-shadow:var(--shadow);margin:8px 0}
+  #r-customform .addrow{margin-top:0}
+
   /* ---------- diet ---------- */
   .dcard{background:var(--card);border-radius:16px;padding:16px;box-shadow:var(--shadow);margin-top:10px}
   .dcard .ttl{font-size:13px;font-weight:700;color:var(--muted)}
@@ -159,6 +174,7 @@
 
   <div class="seg main" role="group" aria-label="모드 선택">
     <button id="m-work" aria-pressed="true">운동</button>
+    <button id="m-record" aria-pressed="false">기록</button>
     <button id="m-diet" aria-pressed="false">식단</button>
   </div>
 
@@ -196,6 +212,30 @@
         <li>천천히, 반동 없이. 내릴 때 2초, 올릴 때 1초.</li>
       </ul></div>
     </details>
+  </div>
+
+  <!-- ================= RECORD ================= -->
+  <div id="recordView" hidden>
+    <div class="hero">
+      <div class="day" id="r-date"></div>
+      <div class="type disp">오늘 <span class="em">기록</span></div>
+      <div class="note">종목마다 무게·세트만 넣으면 바로 저장돼요. "지난 기록"보다 조금씩만 올려보세요.</div>
+    </div>
+    <div class="seg" role="group" aria-label="부위 선택">
+      <button id="r-up" aria-pressed="false">상체</button>
+      <button id="r-lo" aria-pressed="true">하체</button>
+    </div>
+    <div id="recordList"></div>
+    <div id="r-customform" hidden>
+      <div class="addrow">
+        <input id="rc-name" placeholder="운동 이름" maxlength="20">
+        <input id="rc-kg" placeholder="kg" type="number" inputmode="decimal" min="0">
+        <input id="rc-sets" placeholder="세트" type="number" inputmode="numeric" min="0">
+      </div>
+      <button class="addbtn" id="rc-add">추가</button>
+    </div>
+    <button class="dashbtn" id="r-addcustom">+ 다른 운동 추가</button>
+    <div class="savestat" id="r-savestat"></div>
   </div>
 
   <!-- ================= DIET ================= -->
@@ -453,22 +493,125 @@ QUICK.forEach(o=>{
  q.appendChild(b);
 });
 
+/* ================= RECORD ================= */
+const REC_PLAN={
+ '상체':['인클라인 체스트 프레스','펙덱 (가슴 모으기)','숄더 프레스','사이드 레터럴 레이즈','랫풀다운'],
+ '하체':['레그 프레스','레그 익스텐션','레그 컬','어덕터 (내전근)','카프 레이즈']
+};
+function seedHistory(){
+ try{
+   if(localStorage.getItem('seeded_v1'))return;
+   const S={
+    'rec:2026-06-10':[{name:'숄더 프레스',kg:14,sets:3},{name:'인클라인 체스트 프레스',kg:14,sets:2},{name:'펙덱 (가슴 모으기)',kg:11,sets:3},{name:'사이드 레터럴 레이즈',kg:6,sets:3},{name:'랫풀다운',kg:27,sets:3}],
+    'rec:2026-06-27':[{name:'레그 프레스',kg:55,sets:3},{name:'레그 익스텐션',kg:35,sets:3},{name:'레그 컬',kg:14,sets:3},{name:'어덕터 (내전근)',kg:36,sets:3}],
+    'rec:2026-06-28':[{name:'레그 프레스',kg:61,sets:3},{name:'레그 익스텐션',kg:41,sets:3},{name:'레그 컬',kg:14,sets:3},{name:'어덕터 (내전근)',kg:36,sets:3},{name:'랫풀다운',kg:35,sets:2}]
+   };
+   for(const k in S){ if(!localStorage.getItem(k)) localStorage.setItem(k,JSON.stringify(S[k])); }
+   localStorage.setItem('seeded_v1','1');
+ }catch(e){}
+}
+let recData=[], recType='하체';
+function recKey(){return 'rec:'+todayKey();}
+function fmtMD(d){const p=d.split('-');return (+p[1])+'/'+(+p[2]);}
+function allRecKeys(){
+ let keys=[];
+ try{ for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i); if(k&&k.indexOf('rec:')===0)keys.push(k);} }catch(e){}
+ for(const k in memStore){ if(k.indexOf('rec:')===0 && keys.indexOf(k)<0)keys.push(k); }
+ return keys;
+}
+function lastRecord(name){
+ const tkey=recKey(); let best=null,bestDate='';
+ allRecKeys().forEach(k=>{
+   if(k===tkey)return;
+   const d=k.slice(4); let arr;
+   try{ arr=JSON.parse(localStorage.getItem(k)); }catch(e){ arr=memStore[k]; }
+   if(!Array.isArray(arr))return;
+   const it=arr.find(x=>x.name===name && x.kg!=null);
+   if(it && d>bestDate){ bestDate=d; best={kg:it.kg,sets:it.sets,date:d}; }
+ });
+ return best;
+}
+async function loadRecord(){
+ const v=await stGet(recKey()); recData=Array.isArray(v)?v:[];
+ const t=PLAN[new Date().getDay()].type;
+ recType=(t==='상체'||t==='하체')?t:'하체';
+ setRecSeg(); renderRecord();
+}
+function upsertRec(name,kg,sets){
+ let it=recData.find(x=>x.name===name);
+ if(!it){ it={name:name,kg:null,sets:null}; recData.push(it); }
+ it.kg=(kg===''||kg==null)?null:+kg;
+ it.sets=(sets===''||sets==null)?null:+sets;
+ stSet(recKey(),recData);
+ const now=new Date();
+ document.getElementById('r-savestat').textContent='저장됨 · '+now.getHours()+':'+String(now.getMinutes()).padStart(2,'0');
+}
+function renderRecord(){
+ document.getElementById('r-date').textContent=fmtDate();
+ const names=REC_PLAN[recType].slice();
+ recData.forEach(it=>{ if(names.indexOf(it.name)<0)names.push(it.name); });
+ const host=document.getElementById('recordList'); host.innerHTML='';
+ names.forEach(name=>{
+   const cur=recData.find(x=>x.name===name)||{};
+   const last=lastRecord(name);
+   const filled=(cur.kg!=null&&cur.kg!=='');
+   const row=document.createElement('div');
+   row.className='rrow'+(filled?' filled':'');
+   const lastTxt= last ? '지난 기록: <b>'+last.kg+'kg × '+(last.sets||'-')+'세트</b> ('+fmtMD(last.date)+')'
+                       : '지난 기록 없음 — 오늘이 첫 기록이에요';
+   row.innerHTML='<div class="rn">'+name+'</div><div class="last">'+lastTxt+'</div>'
+     +'<div class="rin">'
+     +'<input class="ik" type="number" inputmode="decimal" placeholder="kg"'+(cur.kg!=null?' value="'+cur.kg+'"':'')+'>'
+     +'<span class="unit">kg</span>'
+     +'<input class="is" type="number" inputmode="numeric" placeholder="세트"'+(cur.sets!=null?' value="'+cur.sets+'"':'')+'>'
+     +'<span class="unit">세트</span></div>';
+   const ik=row.querySelector('.ik'), is=row.querySelector('.is');
+   const on=()=>{ upsertRec(name,ik.value,is.value); row.classList.toggle('filled', ik.value!==''); };
+   ik.addEventListener('input',on); is.addEventListener('input',on);
+   host.appendChild(row);
+ });
+}
+const rUp=document.getElementById('r-up'), rLo=document.getElementById('r-lo');
+function setRecSeg(){ rUp.setAttribute('aria-pressed',recType==='상체'); rLo.setAttribute('aria-pressed',recType==='하체'); }
+rUp.onclick=()=>{recType='상체';setRecSeg();renderRecord();};
+rLo.onclick=()=>{recType='하체';setRecSeg();renderRecord();};
+document.getElementById('r-addcustom').onclick=()=>{
+ const f=document.getElementById('r-customform'); f.hidden=!f.hidden;
+ if(!f.hidden)document.getElementById('rc-name').focus();
+};
+document.getElementById('rc-add').onclick=()=>{
+ const n=document.getElementById('rc-name').value.trim();
+ const kg=document.getElementById('rc-kg').value, st=document.getElementById('rc-sets').value;
+ if(!n)return;
+ upsertRec(n,kg,st);
+ document.getElementById('rc-name').value='';document.getElementById('rc-kg').value='';document.getElementById('rc-sets').value='';
+ document.getElementById('r-customform').hidden=true;
+ renderRecord();
+};
+
 /* ================= MODE SWITCH ================= */
-const mWork=document.getElementById('m-work'),mDiet=document.getElementById('m-diet');
+const mWork=document.getElementById('m-work'),mRecord=document.getElementById('m-record'),mDiet=document.getElementById('m-diet');
 function setMode(m){
  mWork.setAttribute('aria-pressed',m==='work');
+ mRecord.setAttribute('aria-pressed',m==='record');
  mDiet.setAttribute('aria-pressed',m==='diet');
  document.getElementById('workView').hidden=(m!=='work');
+ document.getElementById('recordView').hidden=(m!=='record');
  document.getElementById('dietView').hidden=(m!=='diet');
- document.getElementById('pagetitle').textContent= m==='work'?'오늘 뭐 하지?':'오늘 뭐 먹었지?';
- document.getElementById('pagesub').textContent= m==='work'
-   ?'요일 누르면 그날 운동이 떠요. 다 하면 카드 탭해서 체크 ✓'
-   :'먹은 걸 적으면 목표 대비 얼마나 먹었는지 바로 보여요.';
+ const titles={work:'오늘 뭐 하지?',record:'오늘 뭐 했지?',diet:'오늘 뭐 먹었지?'};
+ const subs={work:'요일 누르면 그날 운동이 떠요. 다 하면 카드 탭해서 체크 ✓',
+   record:'한 운동의 무게·세트를 적어두세요. 지난 기록과 비교돼요.',
+   diet:'먹은 걸 적으면 목표 대비 얼마나 먹었는지 바로 보여요.'};
+ document.getElementById('pagetitle').textContent=titles[m];
+ document.getElementById('pagesub').textContent=subs[m];
+ if(m==='record')loadRecord();
  if(m==='diet')loadDiet();
 }
 mWork.onclick=()=>setMode('work');
+mRecord.onclick=()=>setMode('record');
 mDiet.onclick=()=>setMode('diet');
 
+seedHistory();
 renderWork(false);
 loadChecks();
 </script>
