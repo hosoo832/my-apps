@@ -155,6 +155,32 @@
   .qbtn{border:1.5px solid var(--line);background:#faf8f4;border-radius:999px;padding:5px 11px;font-family:inherit;
     font-size:12px;font-weight:700;color:#5b5750;cursor:pointer}
   .qbtn:active{background:var(--paper)}
+  .mplan{background:var(--card);border-radius:16px;box-shadow:var(--shadow);margin-bottom:10px;overflow:hidden}
+  .mplan>summary{list-style:none;cursor:pointer;padding:14px 16px;font-weight:700;font-size:14px;display:flex;justify-content:space-between;align-items:center}
+  .mplan>summary::-webkit-details-marker{display:none}
+  .mplan .arr{color:var(--muted);transition:.2s}
+  .mplan[open] .arr{transform:rotate(180deg)}
+  .mpin{padding:0 12px 14px}
+  .mpday{border:1.5px solid var(--line);border-radius:12px;padding:11px 12px;margin-top:8px}
+  .mpday.today{border-color:var(--accent);background:#fdf2f0}
+  .mpday .dh{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .mpday .dl{font-family:"Black Han Sans",sans-serif;font-size:16px}
+  .mpday .dt{font-size:11px;color:var(--muted);font-weight:700;white-space:nowrap}
+  .mpday.today .dt{color:var(--accent)}
+  .mpday .ml{font-size:12.5px;color:#5b5750;margin-top:6px;line-height:1.6}
+  .mpday .ml b{color:var(--ink)}
+  .mpnote{font-size:11.5px;color:var(--muted);margin-top:12px;line-height:1.55;padding:0 2px}
+  .fsearch{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:11px;font-family:inherit;font-size:14px;background:#faf8f4;margin-top:10px}
+  .fsearch:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+  .foodlist{margin-top:8px;max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;-webkit-overflow-scrolling:touch}
+  .fcat{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.04em;margin:8px 2px 0}
+  .fitem{display:flex;align-items:center;gap:9px;background:#faf8f4;border:1.5px solid var(--line);border-radius:10px;padding:9px 11px;cursor:pointer}
+  .fitem:active{background:var(--paper)}
+  .fitem .fin{flex:1;font-size:13.5px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .fitem .fik{font-size:12.5px;font-weight:700;white-space:nowrap}
+  .fitem .fip{font-size:11px;color:#4a7bd0;font-weight:700;white-space:nowrap;min-width:26px;text-align:right}
+  .fitem .plus{font-size:17px;color:var(--accent2);font-weight:800;line-height:1}
+  .fnone{text-align:center;font-size:12.5px;color:var(--muted);padding:14px 0}
 
   .foods{margin-top:4px;display:flex;flex-direction:column;gap:8px}
   .food{background:var(--card);border-radius:13px;padding:11px 13px;box-shadow:var(--shadow);
@@ -253,6 +279,11 @@
       <div class="note">목표 2,000kcal · 단백질 110~150g. 먹을 때마다 바로 적어두세요.</div>
     </div>
 
+    <details class="mplan">
+      <summary>요일별 추천 식단 (탭해서 열기) <span class="arr">▾</span></summary>
+      <div class="mpin" id="mplan-in"></div>
+    </details>
+
     <div class="dcard">
       <div class="ttl">칼로리</div>
       <div class="kcalrow"><span class="now" id="k-now">0</span><span class="goal">/ 2,000 kcal</span></div>
@@ -264,14 +295,16 @@
     </div>
 
     <div class="dcard">
-      <div class="ttl">추가하기</div>
+      <div class="ttl">음식 골라서 추가</div>
+      <input id="food-search" class="fsearch" placeholder="음식 검색 (예: 복숭아, 제육볶음)">
+      <div class="foodlist" id="foodlist"></div>
+      <div class="ttl" style="margin-top:16px">목록에 없으면 직접 입력</div>
       <div class="addrow">
         <input id="f-name" placeholder="음식 이름" maxlength="30">
         <input id="f-kcal" placeholder="kcal" type="number" inputmode="numeric" min="0">
         <input id="f-prot" placeholder="단백질g" type="number" inputmode="numeric" min="0">
       </div>
       <button class="addbtn" id="f-add">추가</button>
-      <div class="quick" id="quick"></div>
     </div>
 
     <div class="prog" style="margin-top:16px"><span>오늘 먹은 목록</span><div class="bar" style="visibility:hidden"></div></div>
@@ -430,9 +463,36 @@ function setSeg(){
 /* ================= DIET ================= */
 const KCAL_GOAL=2000, PROT_GOAL=110;
 let foods=[];
-const QUICK=[
- {n:"그릭요거트",k:125,p:11},{n:"계란 후라이 1개",k:90,p:6},{n:"스키니 라떼",k:100,p:6},
- {n:"밥 1공기",k:300,p:6},{n:"닭가슴살 100g",k:110,p:23},{n:"바닐라라떼(덜달게)",k:230,p:7}
+const FOODS_DB=[
+ // 과일
+ {n:"복숭아 1개",k:60,p:1,c:"과일"},{n:"사과 1개",k:95,p:0,c:"과일"},{n:"바나나 1개",k:105,p:1,c:"과일"},
+ {n:"귤 1개",k:40,p:0,c:"과일"},{n:"한라봉 1개",k:80,p:1,c:"과일"},{n:"천혜향 1개",k:80,p:1,c:"과일"},
+ {n:"오렌지 1개",k:70,p:1,c:"과일"},{n:"딸기 10개",k:40,p:1,c:"과일"},{n:"배 1개",k:130,p:1,c:"과일"},
+ {n:"포도 한 줌",k:60,p:0,c:"과일"},{n:"수박 1쪽",k:85,p:1,c:"과일"},{n:"방울토마토 10개",k:30,p:1,c:"과일"},
+ {n:"블루베리 한 줌",k:40,p:0,c:"과일"},
+ // 밥·면·빵
+ {n:"밥 1공기",k:300,p:6,c:"밥·면·빵"},{n:"밥 2/3공기",k:200,p:4,c:"밥·면·빵"},{n:"현미밥 1공기",k:310,p:7,c:"밥·면·빵"},
+ {n:"라면 1개",k:500,p:10,c:"밥·면·빵"},{n:"김밥 1줄",k:480,p:10,c:"밥·면·빵"},{n:"식빵 1장",k:80,p:3,c:"밥·면·빵"},
+ {n:"프렌치토스트",k:350,p:10,c:"밥·면·빵"},{n:"베이글 1개",k:270,p:11,c:"밥·면·빵"},{n:"고구마 1개",k:130,p:2,c:"밥·면·빵"},
+ {n:"떡볶이 1인분",k:480,p:8,c:"밥·면·빵"},{n:"간장국수",k:450,p:12,c:"밥·면·빵"},{n:"에그누들",k:450,p:15,c:"밥·면·빵"},{n:"짬뽕",k:550,p:20,c:"밥·면·빵"},{n:"짜장면",k:700,p:16,c:"밥·면·빵"},{n:"알리오올리오 파스타",k:550,p:14,c:"밥·면·빵"},{n:"돈부리(덮밥)",k:600,p:22,c:"밥·면·빵"},
+ // 고기·단백질
+ {n:"계란 후라이 1개",k:90,p:6,c:"고기·단백질"},{n:"삶은 계란 1개",k:70,p:6,c:"고기·단백질"},{n:"닭가슴살 100g",k:110,p:23,c:"고기·단백질"},
+ {n:"수육 100g",k:250,p:18,c:"고기·단백질"},{n:"수육 200g",k:500,p:36,c:"고기·단백질"},{n:"제육볶음 1인분",k:500,p:30,c:"고기·단백질"},{n:"족발 1인분",k:500,p:35,c:"고기·단백질"},
+ {n:"삼겹살 1인분",k:500,p:30,c:"고기·단백질"},{n:"목살 100g",k:230,p:20,c:"고기·단백질"},{n:"목살 200g",k:460,p:40,c:"고기·단백질"},{n:"돼지 불백 1인분",k:500,p:30,c:"고기·단백질"},{n:"소불고기 1인분",k:400,p:28,c:"고기·단백질"},
+ {n:"회덮밥",k:600,p:30,c:"고기·단백질"},{n:"두부 반모",k:110,p:11,c:"고기·단백질"},{n:"그릭요거트",k:125,p:11,c:"고기·단백질"},
+ {n:"참치캔 1개",k:110,p:25,c:"고기·단백질"},{n:"돼지갈비 1인분",k:500,p:30,c:"고기·단백질"},{n:"닭갈비 1인분",k:550,p:35,c:"고기·단백질"},{n:"돈까스",k:650,p:28,c:"고기·단백질"},{n:"초밥 10조각",k:500,p:24,c:"고기·단백질"},
+ // 국·기타 식사
+ {n:"설렁탕",k:500,p:28,c:"국·기타"},{n:"김치찌개 1인분",k:400,p:20,c:"국·기타"},{n:"된장찌개 1인분",k:250,p:14,c:"국·기타"},
+ {n:"만두 5개",k:350,p:10,c:"국·기타"},{n:"치킨 너겟 5개",k:280,p:14,c:"국·기타"},{n:"피자 2조각",k:500,p:18,c:"국·기타"},
+ {n:"햄버거 1개",k:550,p:25,c:"국·기타"},{n:"뼈해장국",k:500,p:28,c:"국·기타"},{n:"순대국",k:500,p:25,c:"국·기타"},{n:"돼지국밥",k:550,p:30,c:"국·기타"},{n:"곰탕",k:430,p:28,c:"국·기타"},{n:"갈비탕",k:500,p:32,c:"국·기타"},{n:"부대찌개 1인분",k:500,p:25,c:"국·기타"},{n:"후라이드 치킨 1조각",k:140,p:11,c:"고기·단백질"},{n:"양념치킨 1조각",k:180,p:11,c:"고기·단백질"},
+ // 음료·커피
+ {n:"아메리카노",k:10,p:0,c:"음료·커피"},{n:"스키니 바닐라라떼",k:100,p:6,c:"음료·커피"},{n:"바닐라라떼(덜달게)",k:230,p:7,c:"음료·커피"},
+ {n:"크림 라떼",k:340,p:8,c:"음료·커피"},{n:"카페라떼",k:180,p:9,c:"음료·커피"},{n:"우유 1잔",k:130,p:8,c:"음료·커피"},
+ {n:"두유 1개",k:100,p:6,c:"음료·커피"},{n:"콜라 1캔",k:140,p:0,c:"음료·커피"},{n:"제로콜라",k:0,p:0,c:"음료·커피"},
+ {n:"레몬에이드",k:180,p:0,c:"음료·커피"},{n:"하이볼 1잔",k:180,p:0,c:"음료·커피"},{n:"맥주 500",k:200,p:2,c:"음료·커피"},
+ // 간식
+ {n:"초코링 조금",k:40,p:1,c:"간식"},{n:"단백질바 1개",k:200,p:15,c:"간식"},{n:"아몬드 한 줌",k:160,p:6,c:"간식"},
+ {n:"과자 1봉",k:250,p:3,c:"간식"},{n:"아이스크림",k:200,p:3,c:"간식"}
 ];
 function fmtDate(){
  const d=new Date();
@@ -493,12 +553,52 @@ document.getElementById('f-add').onclick=()=>{
 ['f-name','f-kcal','f-prot'].forEach(id=>{
  document.getElementById(id).addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('f-add').click();});
 });
-const q=document.getElementById('quick');
-QUICK.forEach(o=>{
- const b=document.createElement('button');b.className='qbtn';b.textContent=o.n+' +';
- b.onclick=()=>addFood(o.n,o.k,o.p);
- q.appendChild(b);
-});
+function renderFoodList(query){
+ query=(query||'').trim();
+ const host=document.getElementById('foodlist'); host.innerHTML='';
+ const matched = query ? FOODS_DB.filter(f=>f.n.replace(/ /g,'').indexOf(query.replace(/ /g,''))>=0) : FOODS_DB;
+ if(!matched.length){ host.innerHTML='<div class="fnone">검색 결과가 없어요. 아래에서 직접 입력해 주세요.</div>'; return; }
+ let lastCat=null;
+ matched.forEach(f=>{
+   if(!query && f.c!==lastCat){ lastCat=f.c; const c=document.createElement('div'); c.className='fcat'; c.textContent=f.c; host.appendChild(c); }
+   const el=document.createElement('div'); el.className='fitem';
+   el.innerHTML='<span class="fin">'+f.n+'</span>'+(f.p?'<span class="fip">'+f.p+'g</span>':'<span class="fip"></span>')
+     +'<span class="fik">'+f.k+'kcal</span><span class="plus">+</span>';
+   el.onclick=()=>{ addFood(f.n,f.k,f.p); el.style.background='#e7f5f1'; setTimeout(()=>{el.style.background='';},250); };
+   host.appendChild(el);
+ });
+}
+document.getElementById('food-search').addEventListener('input',e=>renderFoodList(e.target.value));
+renderFoodList('');
+
+/* ================= MEAL PLAN ================= */
+const MEALPLAN={
+ 1:{t:"상체",b:"그릭요거트 + 삶은계란 2개 + 바나나",l:"제육볶음 + 밥",d:"닭갈비 1인분",s:"단백질 셰이크",kcal:2050,p:128},
+ 2:{t:"하체",b:"그릭요거트 + 계란 2개 + 사과",l:"설렁탕 + 밥 (고기 넉넉히)",d:"족발",s:"단백질 셰이크",kcal:2000,p:125},
+ 3:{t:"유산소",b:"요거트 + 계란 2개 + 귤",l:"회덮밥",d:"김치찌개 + 두부 넉넉히 + 밥",s:"단백질 셰이크",kcal:1900,p:115},
+ 4:{t:"상체",b:"요거트 + 계란 2개 + 블루베리",l:"돼지국밥",d:"목살 200g + 밥",s:"단백질 셰이크",kcal:2050,p:130},
+ 5:{t:"하체",b:"요거트 + 계란 2개 + 바나나",l:"순대국 or 뼈해장국",d:"닭갈비 or 목살 200g",s:"단백질 셰이크",kcal:2000,p:125},
+ 6:{t:"풋살/산책",b:"요거트 + 계란 2개 + 과일",l:"초밥 10조각",d:"부대찌개 or 갈비탕",s:"셰이크 (선택)",kcal:1900,p:112},
+ 0:{t:"휴식",b:"그릭요거트 + 삶은계란 2개 + 과일",l:"갈비탕 or 곰탕 + 밥",d:"편하게 — 단백질 하나는 꼭",s:"",kcal:1950,p:110}
+};
+function renderMealPlan(){
+ const host=document.getElementById('mplan-in'); if(!host)return;
+ const order=[1,2,3,4,5,6,0]; const wd=["일","월","화","수","목","금","토"];
+ const td=new Date().getDay();
+ host.innerHTML='';
+ order.forEach(d=>{
+   const m=MEALPLAN[d];
+   const el=document.createElement('div');
+   el.className='mpday'+(d===td?' today':'');
+   el.innerHTML='<div class="dh"><span class="dl">'+wd[d]+' <span style="font-size:12px;color:var(--muted)">· '+m.t+'</span></span>'
+     +'<span class="dt">'+(d===td?'오늘 · ':'')+'~'+m.kcal.toLocaleString()+'kcal · 단백질 '+m.p+'g</span></div>'
+     +'<div class="ml"><b>아침</b> '+m.b+'<br><b>점심</b> '+m.l+'<br><b>저녁</b> '+m.d+(m.s?'<br><b>간식</b> '+m.s:'')+'</div>';
+   host.appendChild(el);
+ });
+ const note=document.createElement('div'); note.className='mpnote';
+ note.innerHTML='단백질 셰이크가 없으면 → 계란 2개 더 / 참치캔 / 편의점 닭가슴살로 대체하세요. 핵심은 한 끼에 단백질 하나씩 꼭 넣어 하루 110g 넘기기예요. 메뉴는 그날 상황에 맞게 바꿔도 되고, 위 종류만 유지하면 돼요.';
+ host.appendChild(note);
+}
 
 /* ================= RECORD ================= */
 const REC_PLAN={
@@ -619,6 +719,7 @@ mRecord.onclick=()=>setMode('record');
 mDiet.onclick=()=>setMode('diet');
 
 seedHistory();
+renderMealPlan();
 renderWork(false);
 loadChecks();
 </script>
