@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>몸만들기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#ECE7DF; --card:#FFFFFF; --ink:#23252B; --muted:#8a857c;
+    --accent:#E8442A; --accent2:#13a08b; --line:rgba(35,37,43,.10);
+    --shadow:0 1px 2px rgba(35,37,43,.06),0 8px 24px rgba(35,37,43,.07);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{background:var(--paper);color:var(--ink);font-family:"Noto Sans KR",system-ui,sans-serif;
+    line-height:1.5;padding:18px 14px 60px;display:flex;justify-content:center}
+  .wrap{width:100%;max-width:460px}
+  .disp{font-family:"Black Han Sans",sans-serif;font-weight:400;letter-spacing:-.01em}
+
+  header{margin:4px 2px 12px}
+  .eyebrow{font-size:12px;font-weight:700;letter-spacing:.18em;color:var(--accent);text-transform:uppercase}
+  h1.disp{font-size:30px;margin-top:3px;line-height:1.05}
+  .sub{font-size:13px;color:var(--muted);margin-top:6px}
+
+  .seg{display:flex;gap:4px;background:rgba(35,37,43,.06);border-radius:999px;padding:4px;margin:12px 0}
+  .seg button{flex:1;border:0;background:transparent;font-family:inherit;font-size:14px;font-weight:700;
+    color:var(--muted);padding:9px 0;border-radius:999px;cursor:pointer;transition:.18s}
+  .seg button[aria-pressed="true"]{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
+  .seg.main button[aria-pressed="true"]{background:var(--ink);color:#fff}
+
+  .days{display:flex;gap:7px;overflow-x:auto;padding:4px 2px 8px;scrollbar-width:none}
+  .days::-webkit-scrollbar{display:none}
+  .chip{flex:0 0 auto;border:1.5px solid var(--line);background:var(--card);border-radius:14px;
+    padding:9px 4px 8px;width:46px;text-align:center;cursor:pointer;transition:.16s;position:relative}
+  .chip .d{font-family:"Black Han Sans",sans-serif;font-size:17px;line-height:1}
+  .chip .t{font-size:9.5px;color:var(--muted);margin-top:4px;font-weight:500}
+  .chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+  .chip[aria-pressed="true"] .t{color:rgba(255,255,255,.7)}
+  .chip.today::after{content:"오늘";position:absolute;top:-7px;left:50%;transform:translateX(-50%);
+    background:var(--accent);color:#fff;font-size:8px;font-weight:700;padding:1px 5px;border-radius:6px}
+
+  .hero{background:var(--ink);color:#fff;border-radius:20px;padding:20px 20px 18px;margin:14px 0 6px;box-shadow:var(--shadow)}
+  .hero .day{font-size:13px;color:rgba(255,255,255,.65);font-weight:500}
+  .hero .type{font-family:"Black Han Sans",sans-serif;font-size:34px;line-height:1.05;margin-top:2px}
+  .hero .type .em{color:var(--accent)}
+  .hero .note{font-size:13px;color:rgba(255,255,255,.78);margin-top:8px;line-height:1.5}
+
+  .prog{display:flex;align-items:center;gap:10px;margin:14px 2px 6px;font-size:12px;color:var(--muted);font-weight:700}
+  .bar{flex:1;height:8px;background:rgba(35,37,43,.08);border-radius:999px;overflow:hidden}
+  .bar>i{display:block;height:100%;width:0;background:var(--accent2);border-radius:999px;transition:width .3s}
+  .prog .cnt{color:var(--ink)}
+
+  .list{margin-top:8px;display:flex;flex-direction:column;gap:10px}
+  .ex{background:var(--card);border-radius:16px;padding:13px 14px;box-shadow:var(--shadow);
+    cursor:pointer;transition:.16s;border:1.5px solid transparent}
+  .ex:active{transform:scale(.992)}
+  .ex.done{border-color:var(--accent2);background:#f3faf8}
+  .exhead{display:flex;gap:12px;align-items:flex-start}
+  .check{flex:0 0 24px;width:24px;height:24px;border-radius:8px;border:2px solid var(--line);
+    margin-top:2px;display:flex;align-items:center;justify-content:center;transition:.16s}
+  .ex.done .check{background:var(--accent2);border-color:var(--accent2)}
+  .check svg{width:14px;height:14px;stroke:#fff;stroke-width:3.5;fill:none;opacity:0;transition:.16s}
+  .ex.done .check svg{opacity:1}
+  .htxt{flex:1;min-width:0}
+  .nm{font-size:16px;font-weight:700;line-height:1.25}
+  .ex.done .nm{text-decoration:line-through;color:var(--muted)}
+  .mu{font-size:11.5px;color:var(--muted);margin-top:1px}
+  .reps{flex:0 0 auto;text-align:right;align-self:center}
+  .reps .big{font-family:"Black Han Sans",sans-serif;font-size:25px;line-height:.95;white-space:nowrap}
+  .reps .sets{font-size:11px;color:var(--muted);font-weight:700;margin-top:2px}
+
+  .figwrap{background:#f6f3ed;border-radius:12px;margin:11px 0 0;padding:6px;display:flex;justify-content:center}
+  .ex.done .figwrap{background:#eef7f4}
+  .fig{width:100%;max-width:230px;height:80px;display:block}
+  .fig .b{stroke:#3a3c44;stroke-width:3.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .fig .h{fill:#3a3c44}
+  .fig .g{stroke:#cfc8bb;stroke-width:2.6;stroke-linecap:round}
+  .fig .e{stroke:#b3ada1;stroke-width:3.4;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .fig .a{stroke:var(--accent);stroke-width:2.6;fill:none;stroke-linecap:round}
+  .fig .af{fill:var(--accent)}
+
+  .how{font-size:12.5px;color:#5b5750;margin-top:10px;line-height:1.5}
+  .wt{display:inline-block;margin-top:8px;font-size:11px;font-weight:700;color:var(--accent);
+    background:rgba(232,68,42,.09);padding:2px 8px;border-radius:7px}
+
+  .single{background:var(--card);border-radius:16px;padding:18px;box-shadow:var(--shadow);text-align:center;margin-top:8px}
+  .single .ic{font-family:"Black Han Sans",sans-serif;font-size:34px;color:var(--accent)}
+  .single .big{font-family:"Black Han Sans",sans-serif;font-size:22px;margin-top:2px}
+  .single p{font-size:13.5px;color:#5b5750;margin-top:8px;line-height:1.6}
+
+  .doneMsg{display:none;background:var(--accent2);color:#fff;border-radius:14px;padding:13px;text-align:center;
+    font-weight:700;font-size:15px;margin-top:12px}
+  .doneMsg.on{display:block}
+
+  details.tips{background:var(--card);border-radius:16px;box-shadow:var(--shadow);margin-top:14px;overflow:hidden}
+  details.tips summary{list-style:none;cursor:pointer;padding:14px 16px;font-weight:700;font-size:14px;
+    display:flex;justify-content:space-between;align-items:center}
+  details.tips summary::-webkit-details-marker{display:none}
+  details.tips summary .arr{transition:.2s;color:var(--muted)}
+  details.tips[open] summary .arr{transform:rotate(180deg)}
+  details.tips .in{padding:0 16px 16px}
+  details.tips li{font-size:13px;color:#5b5750;line-height:1.6;margin:0 0 9px 18px}
+  details.tips li b{color:var(--ink)}
+
+  /* ---------- record ---------- */
+  .rrow{background:var(--card);border-radius:14px;padding:12px 13px;box-shadow:var(--shadow);margin-bottom:9px;border:1.5px solid transparent}
+  .rrow.filled{border-color:var(--accent2);background:#f3faf8}
+  .rrow .rn{font-size:15px;font-weight:700}
+  .rrow .last{font-size:11.5px;color:var(--muted);margin-top:3px}
+  .rrow .last b{color:var(--accent2)}
+  .rin{display:flex;gap:7px;align-items:center;margin-top:9px}
+  .rin input{width:100%;min-width:0;border:1.5px solid var(--line);border-radius:10px;padding:9px;font-family:inherit;font-size:15px;background:#faf8f4;text-align:center}
+  .rin input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+  .rin .unit{font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap}
+  .dashbtn{width:100%;margin-top:4px;border:1.5px dashed var(--line);background:#faf8f4;color:#5b5750;font-family:inherit;font-weight:700;font-size:14px;padding:12px;border-radius:12px;cursor:pointer}
+  .dashbtn:active{background:var(--paper)}
+  #r-customform{background:var(--card);border-radius:14px;padding:13px;box-shadow:var(--shadow);margin:8px 0}
+  #r-customform .addrow{margin-top:0}
+
+  /* ---------- diet ---------- */
+  .dcard{background:var(--card);border-radius:16px;padding:16px;box-shadow:var(--shadow);margin-top:10px}
+  .dcard .ttl{font-size:13px;font-weight:700;color:var(--muted)}
+  .kcalrow{display:flex;align-items:baseline;gap:8px;margin-top:4px}
+  .kcalrow .now{font-family:"Black Han Sans",sans-serif;font-size:40px;line-height:1}
+  .kcalrow .goal{font-size:14px;color:var(--muted);font-weight:700}
+  .kbar{height:12px;background:rgba(35,37,43,.08);border-radius:999px;overflow:hidden;margin-top:10px}
+  .kbar>i{display:block;height:100%;width:0;background:var(--accent2);border-radius:999px;transition:width .3s}
+  .kbar>i.over{background:var(--accent)}
+  .kmsg{font-size:12.5px;color:#5b5750;margin-top:8px;font-weight:500}
+  .pbar{height:8px;background:rgba(35,37,43,.08);border-radius:999px;overflow:hidden;margin-top:8px}
+  .pbar>i{display:block;height:100%;width:0;background:#4a7bd0;border-radius:999px;transition:width .3s}
+  .prow{display:flex;justify-content:space-between;align-items:baseline;margin-top:14px}
+  .prow .l{font-size:13px;font-weight:700}
+  .prow .r{font-size:12px;color:var(--muted);font-weight:700}
+
+  .addrow{display:flex;gap:6px;margin-top:12px}
+  .addrow input{border:1.5px solid var(--line);border-radius:10px;padding:10px;font-family:inherit;font-size:14px;min-width:0;background:#faf8f4}
+  .addrow input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+  #f-name{flex:2.2}
+  #f-kcal{flex:1.2}
+  #f-prot{flex:1}
+  .addbtn{width:100%;margin-top:8px;border:0;background:var(--ink);color:#fff;font-family:inherit;font-weight:700;
+    font-size:15px;padding:12px;border-radius:12px;cursor:pointer;transition:.15s}
+  .addbtn:active{transform:scale(.985)}
+  .quick{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .qbtn{border:1.5px solid var(--line);background:#faf8f4;border-radius:999px;padding:5px 11px;font-family:inherit;
+    font-size:12px;font-weight:700;color:#5b5750;cursor:pointer}
+  .qbtn:active{background:var(--paper)}
+
+  .foods{margin-top:4px;display:flex;flex-direction:column;gap:8px}
+  .food{background:var(--card);border-radius:13px;padding:11px 13px;box-shadow:var(--shadow);
+    display:flex;align-items:center;gap:10px}
+  .food .fn{flex:1;font-size:14px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .food .fk{font-size:13px;font-weight:700;white-space:nowrap}
+  .food .fp{font-size:11px;color:#4a7bd0;font-weight:700;white-space:nowrap}
+  .food .del{border:0;background:transparent;color:var(--muted);font-size:17px;cursor:pointer;padding:2px 4px;line-height:1}
+  .empty{text-align:center;font-size:13px;color:var(--muted);padding:18px 0 8px}
+  .savestat{text-align:center;font-size:11px;color:var(--muted);margin-top:10px;min-height:14px}
+
+  footer{text-align:center;font-size:11px;color:var(--muted);margin-top:22px;line-height:1.6}
+  button:focus-visible,.chip:focus-visible,.ex:focus-visible,summary:focus-visible{outline:2.5px solid var(--accent);outline-offset:2px}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">3개월 몸만들기</div>
+    <h1 class="disp" id="pagetitle">오늘 뭐 하지?</h1>
+    <div class="sub" id="pagesub">요일 누르면 그날 운동이 떠요. 다 하면 카드 탭해서 체크 ✓</div>
+  </header>
+
+  <div class="seg main" role="group" aria-label="모드 선택">
+    <button id="m-work" aria-pressed="true">운동</button>
+    <button id="m-record" aria-pressed="false">기록</button>
+    <button id="m-diet" aria-pressed="false">식단</button>
+  </div>
+
+  <!-- ================= WORKOUT ================= -->
+  <div id="workView">
+    <div class="seg" role="group" aria-label="장소 선택">
+      <button id="t-gym" aria-pressed="true">헬스장</button>
+      <button id="t-home" aria-pressed="false">집</button>
+    </div>
+
+    <div class="days" id="days" role="group" aria-label="요일 선택"></div>
+
+    <div class="hero">
+      <div class="day" id="h-day"></div>
+      <div class="type disp" id="h-type"></div>
+      <div class="note" id="h-note"></div>
+    </div>
+
+    <div class="prog" id="prog" hidden>
+      <span>완료</span>
+      <div class="bar"><i id="bar"></i></div>
+      <span class="cnt"><span id="cnt">0</span>/<span id="tot">0</span></span>
+    </div>
+
+    <div id="content"></div>
+    <div class="doneMsg" id="doneMsg">오늘 운동 끝! 잘하셨어요 👏</div>
+
+    <details class="tips">
+      <summary>운동 팁 (헷갈릴 때) <span class="arr">▾</span></summary>
+      <div class="in"><ul style="list-style:disc">
+        <li><b>"3세트 × 10회"</b> = 10번씩 쉬면서 3번. 한 번에 30개가 아니에요.</li>
+        <li><b>무게</b>는 마지막 2~3개가 힘든 정도. 끝까지 쉬우면 가벼운 거예요.</li>
+        <li><b>세트 사이</b> 1~1.5분 쉬고 다음 세트.</li>
+        <li><b>뻐근한 것(알 배김)</b>은 정상. <b>콕 쑤시거나 찌릿</b>하면 그 종목만 빼세요.</li>
+        <li>천천히, 반동 없이. 내릴 때 2초, 올릴 때 1초.</li>
+      </ul></div>
+    </details>
+  </div>
+
+  <!-- ================= RECORD ================= -->
+  <div id="recordView" hidden>
+    <div class="hero">
+      <div class="day" id="r-date"></div>
+      <div class="type disp">오늘 <span class="em">기록</span></div>
+      <div class="note">종목마다 무게·세트만 넣으면 바로 저장돼요. "지난 기록"보다 조금씩만 올려보세요.</div>
+    </div>
+    <div class="seg" role="group" aria-label="부위 선택">
+      <button id="r-up" aria-pressed="false">상체</button>
+      <button id="r-lo" aria-pressed="true">하체</button>
+    </div>
+    <div id="recordList"></div>
+    <div id="r-customform" hidden>
+      <div class="addrow">
+        <input id="rc-name" placeholder="운동 이름" maxlength="20">
+        <input id="rc-kg" placeholder="kg" type="number" inputmode="decimal" min="0">
+        <input id="rc-sets" placeholder="세트" type="number" inputmode="numeric" min="0">
+      </div>
+      <button class="addbtn" id="rc-add">추가</button>
+    </div>
+    <button class="dashbtn" id="r-addcustom">+ 다른 운동 추가</button>
+    <div class="savestat" id="r-savestat"></div>
+  </div>
+
+  <!-- ================= DIET ================= -->
+  <div id="dietView" hidden>
+    <div class="hero">
+      <div class="day" id="d-date"></div>
+      <div class="type disp">오늘 <span class="em">먹은 것</span></div>
+      <div class="note">목표 2,000kcal · 단백질 110~150g. 먹을 때마다 바로 적어두세요.</div>
+    </div>
+
+    <div class="dcard">
+      <div class="ttl">칼로리</div>
+      <div class="kcalrow"><span class="now" id="k-now">0</span><span class="goal">/ 2,000 kcal</span></div>
+      <div class="kbar"><i id="k-bar"></i></div>
+      <div class="kmsg" id="k-msg"></div>
+
+      <div class="prow"><span class="l">단백질</span><span class="r"><span id="p-now">0</span> / 110 g</span></div>
+      <div class="pbar"><i id="p-bar"></i></div>
+    </div>
+
+    <div class="dcard">
+      <div class="ttl">추가하기</div>
+      <div class="addrow">
+        <input id="f-name" placeholder="음식 이름" maxlength="30">
+        <input id="f-kcal" placeholder="kcal" type="number" inputmode="numeric" min="0">
+        <input id="f-prot" placeholder="단백질g" type="number" inputmode="numeric" min="0">
+      </div>
+      <button class="addbtn" id="f-add">추가</button>
+      <div class="quick" id="quick"></div>
+    </div>
+
+    <div class="prog" style="margin-top:16px"><span>오늘 먹은 목록</span><div class="bar" style="visibility:hidden"></div></div>
+    <div class="foods" id="foods"></div>
+    <div class="savestat" id="savestat"></div>
+  </div>
+
+  <footer>마지막 2~3개가 힘들면 잘하고 있는 거예요.<br>완벽한 하루보다 꾸준한 한 달.</footer>
+</div>
+
+<script>
+const CHK='<svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>';
+
+const FIG={
+ squat:'<line class="g" x1="40" y1="68" x2="185" y2="68"/><circle class="h" cx="88" cy="20" r="6"/><path class="b" d="M90 27 L100 47"/><path class="b" d="M94 31 L120 38"/><path class="b" d="M100 47 L124 52"/><path class="b" d="M124 52 L120 68"/><path class="a" d="M62 38 L62 58"/><path class="af" d="M62 34 l-4 8 h8 z"/><path class="af" d="M62 62 l-4 -8 h8 z"/>',
+ lunge:'<line class="g" x1="30" y1="68" x2="200" y2="68"/><circle class="h" cx="112" cy="16" r="6"/><path class="b" d="M112 22 L112 44"/><path class="b" d="M112 30 L122 38"/><path class="b" d="M112 44 L138 54"/><path class="b" d="M138 54 L138 68"/><path class="b" d="M112 44 L92 58"/><path class="b" d="M92 58 L78 68"/><path class="a" d="M150 46 L150 60"/><path class="af" d="M150 64 l-4 -8 h8 z"/>',
+ bridge:'<line class="g" x1="30" y1="66" x2="200" y2="66"/><circle class="h" cx="158" cy="58" r="6"/><path class="b" d="M150 60 L108 44"/><path class="b" d="M108 44 L84 52"/><path class="b" d="M84 52 L84 66"/><path class="a" d="M118 34 L118 22"/><path class="af" d="M118 18 l-4 8 h8 z"/>',
+ plank:'<line class="g" x1="30" y1="66" x2="200" y2="66"/><circle class="h" cx="58" cy="48" r="6"/><path class="b" d="M66 51 L130 58 L182 64"/><path class="b" d="M70 52 L70 66"/><path class="b" d="M70 66 L48 66"/><path class="b" d="M182 64 L196 66"/>',
+ kneetuck:'<line class="g" x1="30" y1="66" x2="200" y2="66"/><circle class="h" cx="70" cy="58" r="6"/><path class="b" d="M78 60 L128 60"/><path class="b" d="M128 60 L146 46"/><path class="b" d="M146 46 L132 34"/><path class="a" d="M150 56 L138 42"/><path class="af" d="M134 38 l2 9 6 -6 z"/>',
+ pushup:'<line class="g" x1="30" y1="68" x2="150" y2="68"/><path class="e" d="M150 46 L206 46"/><path class="e" d="M200 46 L200 68"/><circle class="h" cx="174" cy="40" r="6"/><path class="b" d="M168 44 L120 56 L70 68"/><path class="b" d="M170 45 L182 47"/><path class="a" d="M150 34 L162 44"/><path class="af" d="M165 47 l-9 -1 4 -7 z"/>',
+ superman:'<line class="g" x1="30" y1="64" x2="200" y2="64"/><circle class="h" cx="78" cy="48" r="6"/><path class="b" d="M84 50 L150 56"/><path class="b" d="M86 49 L50 40"/><path class="b" d="M150 56 L188 44"/><path class="a" d="M48 30 L48 22"/><path class="af" d="M48 18 l-4 8 h8 z"/><path class="a" d="M190 32 L190 24"/><path class="af" d="M190 20 l-4 8 h8 z"/>',
+ calf:'<line class="g" x1="40" y1="66" x2="185" y2="66"/><circle class="h" cx="112" cy="16" r="6"/><path class="b" d="M112 22 L112 48"/><path class="b" d="M112 28 L104 44"/><path class="b" d="M112 28 L120 44"/><path class="b" d="M112 48 L112 60"/><path class="b" d="M112 60 L128 64"/><path class="b" d="M112 60 L104 60"/><path class="a" d="M150 44 L150 30"/><path class="af" d="M150 26 l-4 8 h8 z"/>',
+ shoulderpress:'<path class="e" d="M86 60 L138 60"/><path class="e" d="M92 60 L92 38"/><circle class="h" cx="112" cy="32" r="6"/><path class="b" d="M112 38 L112 58"/><path class="b" d="M112 40 L96 30 L92 16"/><path class="b" d="M112 40 L128 30 L132 16"/><path class="e" d="M86 16 L100 16"/><path class="e" d="M124 16 L138 16"/><path class="a" d="M112 14 L112 6"/><path class="af" d="M112 4 l-4 8 h8 z"/>',
+ chestpress:'<line class="g" x1="30" y1="68" x2="200" y2="68"/><path class="e" d="M70 68 L120 36"/><path class="e" d="M70 68 L96 68"/><circle class="h" cx="118" cy="34" r="6"/><path class="b" d="M114 39 L86 64"/><path class="b" d="M112 44 L150 40"/><path class="e" d="M150 30 L150 50"/><path class="a" d="M134 56 L150 50"/><path class="af" d="M154 48 l-9 1 3 7 z"/>',
+ pecdeck:'<path class="e" d="M88 62 L136 62"/><path class="e" d="M94 62 L94 38"/><circle class="h" cx="112" cy="30" r="6"/><path class="b" d="M112 36 L112 60"/><path class="b" d="M112 40 L86 42 L84 28"/><path class="b" d="M112 40 L138 42 L140 28"/><path class="a" d="M70 34 L86 36"/><path class="af" d="M90 38 l-9 -3 1 8 z"/><path class="a" d="M154 34 L138 36"/><path class="af" d="M134 38 l9 -3 -1 8 z"/>',
+ lateral:'<line class="g" x1="40" y1="68" x2="185" y2="68"/><path class="e" d="M70 26 L80 26"/><path class="e" d="M144 26 L154 26"/><circle class="h" cx="112" cy="18" r="6"/><path class="b" d="M112 24 L112 50"/><path class="b" d="M112 28 L76 26"/><path class="b" d="M112 28 L148 26"/><path class="b" d="M112 50 L104 68"/><path class="b" d="M112 50 L120 68"/><path class="a" d="M58 40 L58 28"/><path class="af" d="M58 24 l-4 8 h8 z"/><path class="a" d="M166 40 L166 28"/><path class="af" d="M166 24 l-4 8 h8 z"/>',
+ latpull:'<path class="e" d="M70 16 L154 16"/><path class="e" d="M112 16 L112 8"/><circle class="h" cx="112" cy="36" r="6"/><path class="b" d="M112 42 L112 60"/><path class="b" d="M112 44 L84 20"/><path class="b" d="M112 44 L140 20"/><path class="e" d="M96 60 L128 60"/><path class="a" d="M112 24 L112 36"/><path class="af" d="M112 40 l-4 -8 h8 z"/>',
+ legpress:'<line class="g" x1="20" y1="68" x2="120" y2="68"/><path class="e" d="M44 68 L44 50"/><circle class="h" cx="44" cy="44" r="6"/><path class="b" d="M50 46 L86 50"/><path class="b" d="M86 50 L120 36"/><path class="b" d="M120 36 L150 22"/><path class="e" d="M150 14 L168 30"/><path class="a" d="M134 22 L150 12"/><path class="af" d="M154 10 l-9 1 3 8 z"/>',
+ legext:'<path class="e" d="M70 60 L112 60"/><path class="e" d="M76 60 L76 38"/><circle class="h" cx="92" cy="32" r="6"/><path class="b" d="M92 38 L88 56"/><path class="b" d="M88 56 L130 56"/><path class="b" d="M130 56 L162 40"/><path class="e" d="M158 34 L168 46"/><path class="a" d="M146 52 L160 42"/><path class="af" d="M164 39 l-9 2 3 7 z"/>',
+ legcurl:'<line class="g" x1="40" y1="40" x2="120" y2="40"/><circle class="h" cx="60" cy="30" r="6"/><path class="b" d="M66 32 L96 38"/><path class="b" d="M96 38 L140 38"/><path class="b" d="M140 38 L150 60"/><path class="e" d="M144 64 L160 60"/><path class="a" d="M150 46 L153 60"/><path class="af" d="M154 64 l3 -9 -8 1 z"/>',
+ adductor:'<circle class="h" cx="115" cy="18" r="6"/><path class="b" d="M115 24 L115 44"/><path class="b" d="M115 38 L92 60"/><path class="b" d="M115 38 L138 60"/><path class="e" d="M82 56 L82 70"/><path class="e" d="M148 56 L148 70"/><path class="a" d="M98 64 L110 64"/><path class="af" d="M114 64 l-9 -4 v8 z"/><path class="a" d="M132 64 L120 64"/><path class="af" d="M116 64 l9 -4 v8 z"/>'
+};
+function svg(k){return k?'<div class="figwrap"><svg class="fig" viewBox="0 0 230 80" aria-hidden="true">'+(FIG[k]||'')+'</svg></div>':'';}
+
+const UP_GYM=[
+ {nm:"인클라인 체스트 프레스",mu:"윗가슴 · 기계",s:3,r:"10회",fig:"chestpress",how:"비스듬히 누워서 앞으로 밀기. 윗가슴 채우는 운동이에요. 인클라인이 차 있으면 일반 체스트 프레스로 대체 OK.",wt:"플랫 27kg · 인클라인 14kg 했음"},
+ {nm:"펙덱 (가슴 모으기)",mu:"가슴 · 기계",s:3,r:"12회",fig:"pecdeck",how:"양팔로 안듯이 가슴을 끝까지 모았다 펴기. 무게보다 끝까지 모으는 게 중요.",wt:"11kg 했음"},
+ {nm:"숄더 프레스",mu:"어깨 · 기계",s:3,r:"10회",fig:"shoulderpress",how:"손잡이를 머리 위로 밀어올리기. 그립 바뀌면 무게 숫자도 달라져요(정상).",wt:"일자 그립 14kg 했음"},
+ {nm:"사이드 레터럴 레이즈",mu:"어깨 옆 · 덤벨",s:3,r:"15회",fig:"lateral",how:"덤벨 양옆으로 천천히 들기. 가벼운 무게로 개수 채우기.",wt:"6kg 했음"},
+ {nm:"랫풀다운",mu:"등 · 기계",s:3,r:"12회",fig:"latpull",how:"바를 가슴 쪽으로 당기기. 등 넓어져서 어깨 V라인.",wt:"27kg 했음"}
+];
+const UP_HOME=[
+ {nm:"벽/책상 푸시업",mu:"가슴·어깨·팔",s:3,r:"10회",fig:"pushup",how:"바닥이 힘들면 벽·책상에 손 짚고. 몸은 일직선 유지하며 밀기."},
+ {nm:"슈퍼맨",mu:"등·자세",s:3,r:"10회",fig:"superman",how:"엎드려서 양팔·가슴·다리 살짝 들었다 내리기. 굽은 어깨 교정에 좋아요."},
+ {nm:"누워서 무릎 당기기",mu:"코어 · 팔 부담 없음",s:2,r:"15회",fig:"kneetuck",how:"누워서 무릎을 가슴 쪽으로 천천히 당겼다 펴기. 플랭크 대신 팔 안 쓰는 코어."}
+];
+const LO_GYM=[
+ {nm:"레그 프레스",mu:"허벅지 전체 · 기계",s:3,r:"10회",fig:"legpress",how:"앉아서 발로 밀판 밀기. 무릎 끝까지 펴지 말고 살짝 남기기.",wt:"55~61kg 했음"},
+ {nm:"레그 익스텐션",mu:"허벅지 앞 · 기계",s:3,r:"12회",fig:"legext",how:"앉아서 무릎 펴서 발 들어올리기. 천천히 내리기.",wt:"35kg 했음"},
+ {nm:"레그 컬",mu:"허벅지 뒤 · 기계",s:3,r:"12회",fig:"legcurl",how:"무릎 접어서 패드 당기기.",wt:"14kg 했음"},
+ {nm:"어덕터 (내전근)",mu:"허벅지 안쪽 · 기계",s:3,r:"15회",fig:"adductor",how:"앉아서 벌린 무릎을 안쪽으로 모으기. 허벅지 안쪽 잡아줘요.",wt:"36kg 했음"},
+ {nm:"카프 레이즈",mu:"종아리",s:3,r:"15회",fig:"calf",how:"까치발로 발뒤꿈치 올렸다 내리기."},
+ {nm:"누워서 무릎 당기기",mu:"코어 · 팔 부담 없음",s:2,r:"15회",fig:"kneetuck",how:"누워서 무릎을 가슴 쪽으로 당겼다 펴기. 팔 안 쓰는 코어."}
+];
+const LO_HOME=[
+ {nm:"맨몸 스쿼트",mu:"허벅지·엉덩이",s:3,r:"15회",fig:"squat",how:"발 어깨너비, 의자에 앉듯 엉덩이 뒤로 빼고 앉기."},
+ {nm:"런지",mu:"허벅지·엉덩이",s:2,r:"한 다리 10개",fig:"lunge",how:"한 발 앞으로 내딛고 앉았다 일어나기. 왼+오른쪽 다 하면 1세트."},
+ {nm:"글루트 브릿지 (엉덩이 들기)",mu:"엉덩이·허벅지 뒤",s:3,r:"15회",fig:"bridge",how:"누워서 무릎 세우고 엉덩이만 위로. 무릎-엉덩이-어깨 일직선까지."},
+ {nm:"카프 레이즈 (까치발)",mu:"종아리",s:3,r:"20회",fig:"calf",how:"까치발로 올렸다 내리기."}
+];
+
+const PLAN={
+ 0:{label:"일요일",type:"휴식",single:{ic:"쉬는 날",big:"푹 쉬어요",p:"근육은 운동할 때가 아니라 쉴 때 자라요. 오늘은 마음 편히 휴식."}},
+ 1:{label:"월요일",type:"상체",em:true,note:"가슴·어깨·등. 어깨 넓히고 윗가슴 채우는 날.",gym:UP_GYM,home:UP_HOME},
+ 2:{label:"화요일",type:"하체",em:true,note:"다리·엉덩이. 몸에서 제일 큰 근육이라 살 빼는 데도 효자.",gym:LO_GYM,home:LO_HOME},
+ 3:{label:"수요일",type:"유산소",single:{ic:"20분",big:"빠르게 걷기 ↔ 가볍게 뛰기",p:"1~2분 빠르게 걷다가 30초~1분 가볍게 뛰기, 20분 반복. 동네 한 바퀴도 좋아요."}},
+ 4:{label:"목요일",type:"상체",em:true,note:"월요일과 동일. 반복하면서 몸에 익히는 거예요.",gym:UP_GYM,home:UP_HOME},
+ 5:{label:"금요일",type:"하체",em:true,note:"화요일과 동일. 힘들면 세트 줄여도 OK.",gym:LO_GYM,home:LO_HOME},
+ 6:{label:"토요일",type:"풋살 / 산책",single:{ic:"즐기기",big:"풋살 또는 산책",p:"운동이라 생각 말고 재밌게 몸 움직이는 날. 풋살 없으면 가볍게 걷기."}}
+};
+
+/* ---------- storage helpers ---------- */
+let memStore={};
+async function stGet(key){
+  try{ const r=localStorage.getItem(key); return r?JSON.parse(r):null; }
+  catch(e){ return memStore[key]||null; }
+}
+async function stSet(key,val){
+  memStore[key]=val;
+  try{ localStorage.setItem(key,JSON.stringify(val)); return true; }
+  catch(e){ return false; }
+}
+function todayKey(){
+  const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
+/* ================= WORKOUT ================= */
+let place="gym", sel=new Date().getDay(), checked={};
+const today=new Date().getDay();
+const order=[1,2,3,4,5,6,0];
+const daysEl=document.getElementById('days');
+
+function chkKey(){ return 'chk:'+todayKey()+':'+place+':'+sel; }
+async function loadChecks(){ const v=await stGet(chkKey()); checked=(v&&typeof v==='object')?v:{}; renderWork(false); }
+function saveChecks(){ stSet(chkKey(),checked); }
+
+function buildChips(){
+ daysEl.innerHTML='';
+ order.forEach(d=>{
+   const p=PLAN[d];
+   const b=document.createElement('button');
+   b.className='chip'+(d===today?' today':'');
+   b.setAttribute('aria-pressed',d===sel);
+   b.innerHTML='<div class="d">'+p.label[0]+'</div><div class="t">'+(p.type.length>3?p.type.slice(0,2):p.type)+'</div>';
+   b.onclick=()=>{sel=d;checked={};renderWork(false);loadChecks();};
+   daysEl.appendChild(b);
+ });
+}
+function renderWork(save=true){
+ buildChips();
+ const p=PLAN[sel];
+ document.getElementById('h-day').textContent=p.label+(sel===today?" · 오늘":"");
+ document.getElementById('h-type').innerHTML=p.em?'오늘은 <span class="em">'+p.type+'</span>!':p.type;
+ document.getElementById('h-note').textContent=p.note||(p.single?p.single.p:"");
+ const c=document.getElementById('content'),prog=document.getElementById('prog'),doneMsg=document.getElementById('doneMsg');
+ c.innerHTML='';doneMsg.classList.remove('on');
+ if(p.single){
+   prog.hidden=true;
+   c.innerHTML='<div class="single"><div class="ic disp">'+p.single.ic+'</div><div class="big disp">'+p.single.big+'</div><p>'+p.single.p+'</p></div>';
+   return;
+ }
+ prog.hidden=false;
+ const ex=p[place];
+ const list=document.createElement('div');list.className='list';
+ ex.forEach((e,i)=>{
+   const card=document.createElement('div');
+   card.className='ex'+(checked[i]?' done':'');
+   card.setAttribute('tabindex','0');card.setAttribute('role','button');
+   card.innerHTML='<div class="exhead"><div class="check">'+CHK+'</div>'
+     +'<div class="htxt"><div class="nm">'+e.nm+'</div><div class="mu">'+e.mu+'</div></div>'
+     +'<div class="reps"><div class="big">'+e.r+'</div><div class="sets">'+e.s+'세트</div></div></div>'
+     +svg(e.fig)
+     +'<div class="how">'+e.how+'</div>'
+     +(e.wt?'<span class="wt">무게: '+e.wt+'</span>':'');
+   const toggle=()=>{checked[i]=!checked[i];renderWork();};
+   card.onclick=toggle;
+   card.onkeydown=(ev)=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();toggle();}};
+   list.appendChild(card);
+ });
+ c.appendChild(list);
+ const done=ex.filter((_,i)=>checked[i]).length;
+ document.getElementById('cnt').textContent=done;
+ document.getElementById('tot').textContent=ex.length;
+ document.getElementById('bar').style.width=(done/ex.length*100)+'%';
+ if(done===ex.length&&ex.length>0)doneMsg.classList.add('on');
+ if(save)saveChecks();
+}
+document.getElementById('t-gym').onclick=()=>{place="gym";setSeg();checked={};renderWork(false);loadChecks();};
+document.getElementById('t-home').onclick=()=>{place="home";setSeg();checked={};renderWork(false);loadChecks();};
+function setSeg(){
+ document.getElementById('t-gym').setAttribute('aria-pressed',place==="gym");
+ document.getElementById('t-home').setAttribute('aria-pressed',place==="home");
+}
+
+/* ================= DIET ================= */
+const KCAL_GOAL=2000, PROT_GOAL=110;
+let foods=[];
+const QUICK=[
+ {n:"그릭요거트",k:125,p:11},{n:"계란 후라이 1개",k:90,p:6},{n:"스키니 라떼",k:100,p:6},
+ {n:"밥 1공기",k:300,p:6},{n:"닭가슴살 100g",k:110,p:23},{n:"바닐라라떼(덜달게)",k:230,p:7}
+];
+function fmtDate(){
+ const d=new Date();
+ const w=["일","월","화","수","목","금","토"][d.getDay()];
+ return (d.getMonth()+1)+"/"+d.getDate()+" ("+w+") · 오늘";
+}
+async function loadDiet(){
+ const v=await stGet('diet:'+todayKey());
+ foods=Array.isArray(v)?v:[];
+ renderDiet(false);
+}
+function saveDiet(){
+ stSet('diet:'+todayKey(),foods).then(ok=>{
+   document.getElementById('savestat').textContent= ok?'자동 저장됨':'이 화면에서만 임시 저장 중';
+ });
+}
+function renderDiet(save=true){
+ document.getElementById('d-date').textContent=fmtDate();
+ const k=foods.reduce((a,f)=>a+(+f.k||0),0);
+ const p=foods.reduce((a,f)=>a+(+f.p||0),0);
+ document.getElementById('k-now').textContent=k.toLocaleString();
+ const bar=document.getElementById('k-bar');
+ bar.style.width=Math.min(100,k/KCAL_GOAL*100)+'%';
+ bar.className=k>KCAL_GOAL?'over':'';
+ const remain=KCAL_GOAL-k;
+ document.getElementById('k-msg').textContent =
+   k===0 ? '아직 기록이 없어요. 먹은 것부터 하나 추가해보세요.'
+   : remain>=0 ? remain.toLocaleString()+' kcal 남았어요.'
+   : '목표보다 '+Math.abs(remain).toLocaleString()+' kcal 넘었어요. 내일 다시 맞추면 돼요.';
+ document.getElementById('p-now').textContent=p;
+ document.getElementById('p-bar').style.width=Math.min(100,p/PROT_GOAL*100)+'%';
+
+ const list=document.getElementById('foods');
+ list.innerHTML='';
+ if(!foods.length){ list.innerHTML='<div class="empty">오늘 먹은 게 여기에 쌓여요.</div>'; }
+ foods.forEach((f,i)=>{
+   const el=document.createElement('div');el.className='food';
+   el.innerHTML='<span class="fn">'+f.n+'</span>'
+     +(f.p? '<span class="fp">'+f.p+'g</span>':'')
+     +'<span class="fk">'+(+f.k).toLocaleString()+' kcal</span>'
+     +'<button class="del" aria-label="삭제">×</button>';
+   el.querySelector('.del').onclick=()=>{foods.splice(i,1);renderDiet();};
+   list.appendChild(el);
+ });
+ if(save)saveDiet();
+}
+function addFood(n,k,p){
+ n=(n||'').trim(); k=parseInt(k,10); p=parseInt(p,10)||0;
+ if(!n||!(k>=0))return;
+ foods.push({n:n,k:k,p:p});
+ renderDiet();
+}
+document.getElementById('f-add').onclick=()=>{
+ addFood(document.getElementById('f-name').value,document.getElementById('f-kcal').value,document.getElementById('f-prot').value);
+ document.getElementById('f-name').value='';document.getElementById('f-kcal').value='';document.getElementById('f-prot').value='';
+ document.getElementById('f-name').focus();
+};
+['f-name','f-kcal','f-prot'].forEach(id=>{
+ document.getElementById(id).addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('f-add').click();});
+});
+const q=document.getElementById('quick');
+QUICK.forEach(o=>{
+ const b=document.createElement('button');b.className='qbtn';b.textContent=o.n+' +';
+ b.onclick=()=>addFood(o.n,o.k,o.p);
+ q.appendChild(b);
+});
+
+/* ================= RECORD ================= */
+const REC_PLAN={
+ '상체':['인클라인 체스트 프레스','펙덱 (가슴 모으기)','숄더 프레스','사이드 레터럴 레이즈','랫풀다운'],
+ '하체':['레그 프레스','레그 익스텐션','레그 컬','어덕터 (내전근)','카프 레이즈']
+};
+function seedHistory(){
+ try{
+   if(localStorage.getItem('seeded_v1'))return;
+   const S={
+    'rec:2026-06-10':[{name:'숄더 프레스',kg:14,sets:3},{name:'인클라인 체스트 프레스',kg:14,sets:2},{name:'펙덱 (가슴 모으기)',kg:11,sets:3},{name:'사이드 레터럴 레이즈',kg:6,sets:3},{name:'랫풀다운',kg:27,sets:3}],
+    'rec:2026-06-27':[{name:'레그 프레스',kg:55,sets:3},{name:'레그 익스텐션',kg:35,sets:3},{name:'레그 컬',kg:14,sets:3},{name:'어덕터 (내전근)',kg:36,sets:3}],
+    'rec:2026-06-28':[{name:'레그 프레스',kg:61,sets:3},{name:'레그 익스텐션',kg:41,sets:3},{name:'레그 컬',kg:14,sets:3},{name:'어덕터 (내전근)',kg:36,sets:3},{name:'랫풀다운',kg:35,sets:2}]
+   };
+   for(const k in S){ if(!localStorage.getItem(k)) localStorage.setItem(k,JSON.stringify(S[k])); }
+   localStorage.setItem('seeded_v1','1');
+ }catch(e){}
+}
+let recData=[], recType='하체';
+function recKey(){return 'rec:'+todayKey();}
+function fmtMD(d){const p=d.split('-');return (+p[1])+'/'+(+p[2]);}
+function allRecKeys(){
+ let keys=[];
+ try{ for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i); if(k&&k.indexOf('rec:')===0)keys.push(k);} }catch(e){}
+ for(const k in memStore){ if(k.indexOf('rec:')===0 && keys.indexOf(k)<0)keys.push(k); }
+ return keys;
+}
+function lastRecord(name){
+ const tkey=recKey(); let best=null,bestDate='';
+ allRecKeys().forEach(k=>{
+   if(k===tkey)return;
+   const d=k.slice(4); let arr;
+   try{ arr=JSON.parse(localStorage.getItem(k)); }catch(e){ arr=memStore[k]; }
+   if(!Array.isArray(arr))return;
+   const it=arr.find(x=>x.name===name && x.kg!=null);
+   if(it && d>bestDate){ bestDate=d; best={kg:it.kg,sets:it.sets,date:d}; }
+ });
+ return best;
+}
+async function loadRecord(){
+ const v=await stGet(recKey()); recData=Array.isArray(v)?v:[];
+ const t=PLAN[new Date().getDay()].type;
+ recType=(t==='상체'||t==='하체')?t:'하체';
+ setRecSeg(); renderRecord();
+}
+function upsertRec(name,kg,sets){
+ let it=recData.find(x=>x.name===name);
+ if(!it){ it={name:name,kg:null,sets:null}; recData.push(it); }
+ it.kg=(kg===''||kg==null)?null:+kg;
+ it.sets=(sets===''||sets==null)?null:+sets;
+ stSet(recKey(),recData);
+ const now=new Date();
+ document.getElementById('r-savestat').textContent='저장됨 · '+now.getHours()+':'+String(now.getMinutes()).padStart(2,'0');
+}
+function renderRecord(){
+ document.getElementById('r-date').textContent=fmtDate();
+ const names=REC_PLAN[recType].slice();
+ recData.forEach(it=>{ if(names.indexOf(it.name)<0)names.push(it.name); });
+ const host=document.getElementById('recordList'); host.innerHTML='';
+ names.forEach(name=>{
+   const cur=recData.find(x=>x.name===name)||{};
+   const last=lastRecord(name);
+   const filled=(cur.kg!=null&&cur.kg!=='');
+   const row=document.createElement('div');
+   row.className='rrow'+(filled?' filled':'');
+   const lastTxt= last ? '지난 기록: <b>'+last.kg+'kg × '+(last.sets||'-')+'세트</b> ('+fmtMD(last.date)+')'
+                       : '지난 기록 없음 — 오늘이 첫 기록이에요';
+   row.innerHTML='<div class="rn">'+name+'</div><div class="last">'+lastTxt+'</div>'
+     +'<div class="rin">'
+     +'<input class="ik" type="number" inputmode="decimal" placeholder="kg"'+(cur.kg!=null?' value="'+cur.kg+'"':'')+'>'
+     +'<span class="unit">kg</span>'
+     +'<input class="is" type="number" inputmode="numeric" placeholder="세트"'+(cur.sets!=null?' value="'+cur.sets+'"':'')+'>'
+     +'<span class="unit">세트</span></div>';
+   const ik=row.querySelector('.ik'), is=row.querySelector('.is');
+   const on=()=>{ upsertRec(name,ik.value,is.value); row.classList.toggle('filled', ik.value!==''); };
+   ik.addEventListener('input',on); is.addEventListener('input',on);
+   host.appendChild(row);
+ });
+}
+const rUp=document.getElementById('r-up'), rLo=document.getElementById('r-lo');
+function setRecSeg(){ rUp.setAttribute('aria-pressed',recType==='상체'); rLo.setAttribute('aria-pressed',recType==='하체'); }
+rUp.onclick=()=>{recType='상체';setRecSeg();renderRecord();};
+rLo.onclick=()=>{recType='하체';setRecSeg();renderRecord();};
+document.getElementById('r-addcustom').onclick=()=>{
+ const f=document.getElementById('r-customform'); f.hidden=!f.hidden;
+ if(!f.hidden)document.getElementById('rc-name').focus();
+};
+document.getElementById('rc-add').onclick=()=>{
+ const n=document.getElementById('rc-name').value.trim();
+ const kg=document.getElementById('rc-kg').value, st=document.getElementById('rc-sets').value;
+ if(!n)return;
+ upsertRec(n,kg,st);
+ document.getElementById('rc-name').value='';document.getElementById('rc-kg').value='';document.getElementById('rc-sets').value='';
+ document.getElementById('r-customform').hidden=true;
+ renderRecord();
+};
+
+/* ================= MODE SWITCH ================= */
+const mWork=document.getElementById('m-work'),mRecord=document.getElementById('m-record'),mDiet=document.getElementById('m-diet');
+function setMode(m){
+ mWork.setAttribute('aria-pressed',m==='work');
+ mRecord.setAttribute('aria-pressed',m==='record');
+ mDiet.setAttribute('aria-pressed',m==='diet');
+ document.getElementById('workView').hidden=(m!=='work');
+ document.getElementById('recordView').hidden=(m!=='record');
+ document.getElementById('dietView').hidden=(m!=='diet');
+ const titles={work:'오늘 뭐 하지?',record:'오늘 뭐 했지?',diet:'오늘 뭐 먹었지?'};
+ const subs={work:'요일 누르면 그날 운동이 떠요. 다 하면 카드 탭해서 체크 ✓',
+   record:'한 운동의 무게·세트를 적어두세요. 지난 기록과 비교돼요.',
+   diet:'먹은 걸 적으면 목표 대비 얼마나 먹었는지 바로 보여요.'};
+ document.getElementById('pagetitle').textContent=titles[m];
+ document.getElementById('pagesub').textContent=subs[m];
+ if(m==='record')loadRecord();
+ if(m==='diet')loadDiet();
+}
+mWork.onclick=()=>setMode('work');
+mRecord.onclick=()=>setMode('record');
+mDiet.onclick=()=>setMode('diet');
+
+seedHistory();
+renderWork(false);
+loadChecks();
+</script>
+</body>
+</html>
