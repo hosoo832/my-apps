@@ -355,7 +355,78 @@ const CONTENT = {
           {s:"A", en:"Nice. Any plans for the weekend?", ko:"좋네요. 주말에 뭐 해요?"},
           {s:"B", en:"I'm going camping with my family. How about you?", ko:"가족들과 캠핑 가요. 그쪽은요?"},
           {s:"A", en:"I'm just going to relax at home.", ko:"저는 그냥 집에서 쉬려고요."},
-          {s:"B", en:"That sounds nice too. Sometimes we all need that.", ko:"그것도 좋죠. 가끔은 그런 시간이 필요하잖아요."}]}
+          {s:"B", en:"That sounds nice too. Sometimes we all need that.", ko:"그것도 좋죠. 가끔은 그런 시간이 필요하잖아요."}]},
+      /* ---- 실전 시나리오: 실제 미팅 녹취에서 추출한 표현 기반 ---- */
+      { id:"invoice", emoji:"🧾", title:"Invoice & Billing Entity", ko:"실전 · 인보이스 처리 문제",
+        keys:[
+          {en:"The billing name has to match the agreement.", ko:"청구 주체가 계약서와 일치해야 합니다."},
+          {en:"Is there any specific reason for that?", ko:"그렇게 하는 특별한 이유가 있나요?"},
+          {en:"Let me check with the finance team and get back to you.", ko:"재무팀과 확인하고 다시 말씀드릴게요."}],
+        lines:[
+          {s:"A", en:"About the invoice — the agreement is signed with our regional entity, so the billing name has to match.", ko:"인보이스 관련해서요. 계약이 지역 법인 명의라서, 청구 주체가 계약서와 일치해야 해요."},
+          {s:"B", en:"I see. Is there any specific reason it has to go through the regional entity?", ko:"그렇군요. 꼭 지역 법인을 통해야 하는 특별한 이유가 있나요?"},
+          {s:"A", en:"Yes. As long as the billing name doesn't match the agreement, our system can't process the payment.", ko:"네. 청구 주체가 계약서와 다르면 시스템에서 지급 처리가 안 돼요."},
+          {s:"B", en:"Got it. We usually make payments directly from Korea for local deals.", ko:"알겠습니다. 보통 로컬 딜은 한국에서 직접 지급하거든요."},
+          {s:"A", en:"I understand, but this contract is under the regional agreement.", ko:"이해해요. 다만 이 건은 지역 계약에 묶여 있어서요."},
+          {s:"B", en:"Okay. Let me check with our finance team and get back to you.", ko:"네. 저희 재무팀과 확인하고 다시 말씀드릴게요."},
+          {s:"A", en:"Perfect. Just send me a note once it's confirmed.", ko:"좋아요. 확정되면 메모 하나 보내주세요."},
+          {s:"B", en:"Will do. Thanks for the clarification.", ko:"그럴게요. 설명 감사합니다."}]},
+      { id:"dealterms", emoji:"📝", title:"Confirming Deal Terms", ko:"실전 · 계약 조건 확인",
+        keys:[
+          {en:"The deal is approved and confirmed.", ko:"딜이 승인되고 확정됐습니다."},
+          {en:"The fee is prorated for the remaining months.", ko:"금액은 남은 기간에 비례 배분됩니다."},
+          {en:"An amendment will be faster than a new agreement.", ko:"신규 계약보다 수정 계약이 더 빠를 거예요."}],
+        lines:[
+          {s:"A", en:"Good news. The deal is approved and confirmed.", ko:"좋은 소식이에요. 딜이 승인되고 확정됐습니다."},
+          {s:"B", en:"Great! So the amount is final, based on what you shared?", ko:"잘됐네요! 그럼 공유해 주신 기준으로 금액은 확정인 거죠?"},
+          {s:"A", en:"Yes, it's final. The fee is prorated for the remaining months.", ko:"네, 확정입니다. 금액은 남은 기간에 비례 배분돼요."},
+          {s:"B", en:"So it ends on the same date as the existing agreement, right?", ko:"그럼 기존 계약과 같은 날짜에 종료되는 거 맞죠?"},
+          {s:"A", en:"Exactly. The minimum guarantee is prorated as well.", ko:"정확해요. 최소 보장 금액도 같이 비례 배분됩니다."},
+          {s:"B", en:"Then do we need to draft a new agreement?", ko:"그럼 새 계약서를 작성해야 하나요?"},
+          {s:"A", en:"No. We'll add it to the existing agreement as an amendment, which will be faster.", ko:"아니요. 기존 계약에 수정 계약으로 붙일 거예요. 그게 더 빠르거든요."},
+          {s:"B", en:"Perfect. Please send it over when it's ready.", ko:"좋습니다. 준비되면 보내주세요."}]},
+      { id:"bucket", emoji:"💰", title:"Budget Bucket Discussion", ko:"실전 · 예산 항목 협의",
+        keys:[
+          {en:"What's your definition of regional content?", ko:"지역 콘텐츠의 기준이 뭔가요?"},
+          {en:"Let's keep it as a placeholder, subject to review.", ko:"검토를 전제로 예산 자리만 잡아두죠."},
+          {en:"If it's not used, we'll move it down to the local bucket.", ko:"안 쓰면 로컬 예산으로 옮기면 됩니다."}],
+        lines:[
+          {s:"A", en:"I went through your budget file. What's your definition of regional content here?", ko:"예산 파일 봤어요. 여기서 지역 콘텐츠의 기준이 뭔가요?"},
+          {s:"B", en:"That's what I wanted to ask. There are no new regional titles for Korea next year, right?", ko:"저도 그걸 여쭤보려고 했어요. 내년에 한국에 해당하는 신규 지역 타이틀은 없는 거 맞죠?"},
+          {s:"A", en:"Right. There are no new seasons coming for those titles.", ko:"맞아요. 그 타이틀들은 새 시즌이 없어요."},
+          {s:"B", en:"Then can I move that amount to the Korea-only bucket?", ko:"그럼 그 금액을 한국 전용 예산으로 옮겨도 될까요?"},
+          {s:"A", en:"You can, but I'd suggest keeping it as a placeholder, subject to title review.", ko:"그래도 되지만, 타이틀 검토를 전제로 자리만 잡아두는 걸 추천해요."},
+          {s:"B", en:"I see. So if a new title comes up, we can still join the regional deal.", ko:"그렇군요. 새 타이틀이 나오면 지역 딜에 참여할 수 있으니까요."},
+          {s:"A", en:"Exactly. And if the amount is not used, we'll move it down to the Korea bucket later.", ko:"바로 그거예요. 그리고 안 쓰면 나중에 한국 예산으로 옮기면 됩니다."},
+          {s:"B", en:"Okay, that makes sense. I'll note it that way and update the file.", ko:"네, 이해했어요. 그렇게 메모하고 파일을 업데이트할게요."}]},
+      { id:"access", emoji:"🔗", title:"Access & Expired Link", ko:"실전 · 접근 권한 요청",
+        keys:[
+          {en:"I can't access the link you shared.", ko:"공유해 주신 링크에 접근이 안 돼요."},
+          {en:"The invitation may have expired.", ko:"초대가 만료된 것 같아요."},
+          {en:"Could you send me a new invite?", ko:"새 초대장을 보내주시겠어요?"}],
+        lines:[
+          {s:"B", en:"Quick question — can I access the content guide you mentioned?", ko:"간단한 질문인데요, 말씀하신 콘텐츠 가이드에 접근할 수 있나요?"},
+          {s:"A", en:"You should be able to. Did you click the link?", ko:"될 텐데요. 링크는 눌러보셨어요?"},
+          {s:"B", en:"I tried today, but I can't access it.", ko:"오늘 해봤는데, 접근이 안 돼요."},
+          {s:"A", en:"Ah, the invitation may have expired. It's a confidential link.", ko:"아, 초대가 만료됐나 봐요. 비공개 링크라서요."},
+          {s:"B", en:"I see. Could you send me a new invite?", ko:"그렇군요. 새 초대장을 보내주시겠어요?"},
+          {s:"A", en:"Sure. Click the new link, and I'll get notified and approve your access.", ko:"물론이죠. 새 링크를 누르면 저한테 알림이 와서 승인해 드릴게요."},
+          {s:"B", en:"Great. I'll let you know once I'm in.", ko:"좋아요. 들어가지면 알려드릴게요."},
+          {s:"A", en:"Sounds good. If it still doesn't work, just ping me again.", ko:"네. 그래도 안 되면 다시 연락 주세요."}]},
+      { id:"yearend", emoji:"🗓️", title:"Year-End Closing", ko:"실전 · 연말 클로징과 승인",
+        keys:[
+          {en:"We've spent about seventy percent of this year's budget.", ko:"올해 예산의 약 70%를 집행했습니다."},
+          {en:"Finance asked for the committed and uncommitted amounts.", ko:"재무팀이 확정·미확정 예산 내역을 요청했어요."},
+          {en:"The approval process takes about a month.", ko:"승인 절차가 한 달 정도 걸립니다."}],
+        lines:[
+          {s:"A", en:"By the way, how much of your budget is left for this year?", ko:"그런데 올해 예산은 얼마나 남았어요?"},
+          {s:"B", en:"We've spent about seventy percent, mostly on acquisitions.", ko:"약 70% 집행했어요. 대부분 구매 쪽이에요."},
+          {s:"A", en:"Okay. Year-end is coming, so we should close all the agreements soon.", ko:"그렇군요. 연말이 다가오니 계약들을 빨리 마무리해야 해요."},
+          {s:"B", en:"Right. Finance asked me to submit the committed and uncommitted amounts.", ko:"맞아요. 재무팀이 확정·미확정 예산 내역 제출을 요청했어요."},
+          {s:"A", en:"Same here. I'm rushing to get all the sign-offs before the deadline.", ko:"저도요. 마감 전에 결재를 다 받으려고 서두르는 중이에요."},
+          {s:"B", en:"One thing to keep in mind — the approval process takes about a month.", ko:"한 가지 유의할 점은, 승인 절차가 한 달 정도 걸린다는 거예요."},
+          {s:"A", en:"In my case, everything has already been approved, so no additional sign-off is needed.", ko:"제 쪽은 이미 다 승인돼서 추가 결재는 필요 없어요."},
+          {s:"B", en:"Lucky you! Then I'd better start the paperwork this week.", ko:"부럽네요! 그럼 저는 이번 주에 서류 작업을 시작해야겠어요."}]}
     ]
   },
   gio: {
@@ -686,7 +757,13 @@ const BIZ_ROLEPLAYS = [
     opener:"Morning! Let's start the stand-up. What did you do yesterday, what's the plan for today, and any blockers?" },
   { id:"onboard", emoji:"👋", title:"새 동료와 첫 인사", role:"a new foreign colleague who just joined the team",
     situation:"casual office small talk: introductions, roles, helping the new colleague settle in",
-    opener:"Hi! I just joined the team this week. You're on the platform team, right? Nice to meet you!" }
+    opener:"Hi! I just joined the team this week. You're on the platform team, right? Nice to meet you!" },
+  { id:"budget", emoji:"💰", title:"지역 예산 협의", role:"the user's regional counterpart at headquarters",
+    situation:"discussing whether a budget line should sit in the regional bucket or the Korea-only bucket, keeping placeholders subject to title review, and moving unused amounts down to the local bucket",
+    opener:"I went through your budget file. Quick question — what's your definition of regional content here?" },
+  { id:"invoice", emoji:"🧾", title:"인보이스·계약 주체 이슈", role:"a finance manager at the regional office",
+    situation:"resolving an invoice that cannot be processed because the billing entity does not match the agreement, and agreeing on next steps",
+    opener:"Hi, about that invoice — the billing name doesn't match the agreement, so I couldn't process it. Can we sort this out?" }
 ];
 
 const REPORT_PROMPT = `You are an English speaking coach. Based on the conversation transcript, write a short feedback report in KOREAN for the learner ("Learner" in the transcript) with exactly these three sections:
