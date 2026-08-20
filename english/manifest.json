@@ -1,0 +1,14 @@
+{
+  "name": "DualTalk AI — 우리집 영어회화",
+  "short_name": "DualTalk",
+  "description": "아빠는 영어 미팅, 지오는 일상회화 — 듣고 따라하고 역할극으로 연습하는 가족 영어회화 앱",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8fafc",
+  "theme_color": "#2563eb",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
