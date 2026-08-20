@@ -1462,15 +1462,48 @@ function vChatBody(){
   const pid = ui.profile;
   const hasKey = !!store.settings.apiKey;
   if(!hasKey){
-    return `
-    <div class="card center">
-      <div style="font-size:2.5rem">🤖</div>
-      <h3 style="margin:8px 0">AI 프리토킹</h3>
-      <p class="muted" style="margin-bottom:12px">AI와 실시간으로 자유롭게 영어 대화를 나누는 모드예요.<br>
-      ${pid==="dad"? "비즈니스 롤플레잉과 MBTI 친구 모드(5종 페르소나)도 여기서 열려요.<br>":"강아지 친구 코코 🐶 와 대화할 수 있어요.<br>"}
-      사용하려면 설정에서 <b>Claude API 키</b>를 넣어주세요.<br>
-      (사용한 만큼 비용이 발생하고, 인터넷 연결이 필요해요)</p>
-      <button class="btn primary" onclick="App.openSettings('list')">⚙️ 설정에서 API 키 넣기</button>
+    const copyIntro = `
+    <div class="card">
+      <div class="center" style="font-size:2.2rem">🤖</div>
+      <h3 class="center" style="margin:6px 0">AI 프리토킹 — 두 가지 방법</h3>
+      <p class="muted" style="line-height:1.6">
+      <b>① claude.ai에서 무료로</b> (클로드 구독이 있다면 추가 비용 없음)<br>
+      아래에서 프롬프트를 복사해 <b>claude.ai 앱</b>에 붙여넣으면 바로 대화가 시작돼요. 음성 모드를 켜면 말로 주고받을 수 있고, 대화 중 <b>"hint"</b>라고 하면 추천 답변 3개, <b>"report"</b>라고 하면 한국어 피드백 리포트를 줍니다.<br><br>
+      <b>② 이 앱 안에서 바로</b><br>
+      설정에 Claude API 키를 넣으면 마이크·자동 읽어주기·학습 기록까지 연동돼요 (사용량만큼 과금).</p>
+      <div class="center"><button class="btn ghost small" style="margin-top:8px" onclick="App.openSettings('list')">⚙️ API 키 넣기</button></div>
+    </div>`;
+    if(pid==="gio"){
+      return copyIntro + `
+      <div class="card" style="display:flex;align-items:center;gap:12px">
+        <div style="font-size:1.6rem">🐶</div>
+        <div style="flex:1"><b>코코와 대화하기</b><div class="muted">아주 쉬운 문장으로 말하는 강아지 선생님</div></div>
+        <button class="btn orange small" onclick="App.copyPrompt('coco')">📋 복사</button>
+      </div>`;
+    }
+    return copyIntro + `
+    <div class="card">
+      <h3 style="margin-bottom:8px">🍻 친구 모드 프롬프트</h3>
+      ${PERSONAS.map(p=>`
+      <div class="key-expr">
+        <div>${p.emoji} <b>${p.mbti}</b> · ${esc(p.concept)}</div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn ghost small" onclick="App.copyPrompt('buddy','${p.id}','m')">📋 ${p.m}</button>
+          <button class="btn ghost small" onclick="App.copyPrompt('buddy','${p.id}','f')">📋 ${p.f}</button>
+        </div>
+      </div>`).join("")}
+    </div>
+    <div class="card">
+      <h3 style="margin-bottom:8px">💼 롤플레잉 프롬프트</h3>
+      ${BIZ_ROLEPLAYS.map(r=>`
+      <div class="key-expr">
+        <div>${r.emoji} ${esc(r.title)}</div>
+        <button class="btn ghost small" style="flex-shrink:0" onclick="App.copyPrompt('biz','${r.id}')">📋 복사</button>
+      </div>`).join("")}
+      <div class="key-expr">
+        <div>🎯 코치 프리토킹 (자유 주제 + 💡 교정)</div>
+        <button class="btn ghost small" style="flex-shrink:0" onclick="App.copyPrompt('coach')">📋 복사</button>
+      </div>
     </div>`;
   }
   const meta = chatMetaOf(pid);
@@ -1569,29 +1602,62 @@ function scrollChat(){
 }
 function personaById(id){ return PERSONAS.find(p=>p.id===id); }
 function chatMetaOf(pid){ return store.profiles[pid].chatMeta || (store.profiles[pid].chatMeta = {mode:"free"}); }
-function buildSystem(pid){
-  if(pid==="gio") return AI_PROMPTS.gio;
-  const meta = chatMetaOf("dad");
-  if(meta.mode==="buddy" && meta.personaId){
-    const p = personaById(meta.personaId);
-    const name = meta.gender==="f" ? p.f : p.m;
-    return `You are ${name}, the user's close ${meta.gender==="f"?"female":"male"} friend and casual English chat buddy. Your personality (MBTI ${p.mbti}): ${p.style}.
+function buddySystem(p, gender){
+  const name = gender==="f" ? p.f : p.m;
+  return `You are ${name}, the user's close ${gender==="f"?"female":"male"} friend and casual English chat buddy. Your personality (MBTI ${p.mbti}): ${p.style}.
 - This is relaxed after-work chit-chat with a Korean friend who is improving spoken English. Keep replies short (1-3 sentences), like messages between close friends.
 - Use natural spoken English: contractions, casual slang and idioms that fit your personality.
 - NEVER lecture about grammar or point out mistakes. Instead use recasting: if the user says something awkward, naturally weave the corrected phrasing into your own reply.
 - Stay fully in character as ${name}. React first, then keep the conversation alive with a question or a playful comment.
 - English only.`;
-  }
-  if(meta.mode==="biz" && meta.rpId){
-    const r = BIZ_ROLEPLAYS.find(x=>x.id===meta.rpId);
-    return `You are role-playing as ${r.role} in an English business conversation practice for a Korean professional at a global company.
+}
+function bizSystem(r){
+  return `You are role-playing as ${r.role} in an English business conversation practice for a Korean professional at a global company.
 Situation: ${r.situation}.
 - Stay in character. Keep the conversation realistic and professional, and keep each reply to 2-3 sentences, then hand the turn back with a question or a prompt.
 - Do not correct grammar mid-conversation; use natural recasting instead (restate their idea with the natural professional phrasing inside your reply).
 - After roughly 5 of the user's turns, wrap up the scenario naturally and thank them.
 - English only.`;
-  }
+}
+function buildSystem(pid){
+  if(pid==="gio") return AI_PROMPTS.gio;
+  const meta = chatMetaOf("dad");
+  if(meta.mode==="buddy" && meta.personaId) return buddySystem(personaById(meta.personaId), meta.gender);
+  if(meta.mode==="biz" && meta.rpId) return bizSystem(BIZ_ROLEPLAYS.find(x=>x.id===meta.rpId));
   return AI_PROMPTS.dad;
+}
+
+/* claude.ai에 붙여넣어 쓰는 프롬프트 (API 키 없이 구독으로 대화할 때) */
+const CLIP_HEADER = "[영어 회화 연습 롤플레잉입니다. 이 대화가 끝날 때까지 아래 역할과 규칙을 유지해 주세요.]\n\n";
+const CLIP_EXTRA = `\n\nExtra commands (follow these throughout the conversation):
+- If I say "hint", pause and suggest 3 replies I could say next (easy, medium, challenging), then continue the roleplay.
+- If I say "report", write a short feedback report in KOREAN with three sections — 📌 문법 교정 / ✨ 더 자연스러운 표현 / 👍 잘한 점 — then continue.`;
+function claudePrompt(kind, id, gender){
+  if(kind==="coco")
+    return CLIP_HEADER + AI_PROMPTS.gio + CLIP_EXTRA + `\n\nStart now by greeting me: "Woof woof! Hi! I'm Coco! 🐶 What's your name?"`;
+  if(kind==="coach")
+    return CLIP_HEADER + AI_PROMPTS.dad + CLIP_EXTRA + `\n\nStart now by greeting me in English and asking about my day.`;
+  if(kind==="buddy"){
+    const p = personaById(id);
+    return CLIP_HEADER + buddySystem(p, gender) + CLIP_EXTRA + `\n\nStart now with: "${p.opener}"`;
+  }
+  const r = BIZ_ROLEPLAYS.find(x=>x.id===id);
+  return CLIP_HEADER + bizSystem(r) + CLIP_EXTRA + `\n\nStart now with: "${r.opener}"`;
+}
+function fallbackCopy(t){
+  const ta = document.createElement("textarea");
+  ta.value = t; ta.style.position = "fixed"; ta.style.opacity = "0";
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  let ok = false;
+  try{ ok = document.execCommand("copy"); }catch(e){}
+  document.body.removeChild(ta);
+  return ok;
+}
+function copyText(t){
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    return navigator.clipboard.writeText(t).then(()=>true).catch(()=>fallbackCopy(t));
+  }
+  return Promise.resolve(fallbackCopy(t));
 }
 function transcriptOf(pid){
   return store.profiles[pid].chat.filter(m=>!m.sys)
@@ -1951,6 +2017,13 @@ const App = {
   },
 
   /* AI 채팅 */
+  copyPrompt(kind, id, gender){
+    copyText(claudePrompt(kind, id, gender)).then(ok=>{
+      alert(ok
+        ? "프롬프트를 복사했어요!\n\nclaude.ai 앱을 열어 새 대화에 붙여넣으면 바로 시작됩니다. 🎙️ 음성 모드를 켜면 말로 대화할 수 있어요."
+        : "복사에 실패했어요. 브라우저가 클립보드 기능을 지원하지 않는 것 같아요.");
+    });
+  },
   setChatMode(m){
     const prof = store.profiles.dad;
     if(chatMetaOf("dad").mode===m) return;
