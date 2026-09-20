@@ -100,6 +100,12 @@ input,select,textarea{font-family:inherit;font-size:1rem}
 .step-ind i.on{background:var(--blue)} .step-ind i.done{background:var(--green)}
 .blurred{filter:blur(6px);transition:filter .2s;user-select:none}
 .blurred.show{filter:none}
+/* reading */
+.rword{cursor:pointer;border-radius:6px;padding:1px 3px}
+.rword.sel{background:var(--orange-soft);outline:1px solid var(--orange)}
+.rbar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin:8px 0}
+.rbar i{display:block;height:100%;background:var(--green)}
+.scen-item{cursor:pointer}
 /* pattern chips */
 .chip-pool{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:14px 0;min-height:44px}
 .word-chip{padding:10px 16px;border-radius:12px;background:#fff;border:2px solid var(--orange);
@@ -885,6 +891,52 @@ Keep it compact. If the learner made almost no mistakes, say so, and still sugge
 
 const HINT_PROMPT = `You are helping an English learner who is stuck in a conversation. Given the transcript, suggest exactly 3 possible replies the learner ("Learner") could say next, ordered from easiest to most challenging. Match the level of the conversation. Reply with ONLY the 3 sentences, one per line, no numbering, no labels, no extra text.`;
 
+const EXPLAIN_PROMPT = `You are helping a Korean elementary school student read an English story. For the sentence given, reply in KOREAN with at most 4 short lines:
+1) 문장의 자연스러운 한국어 뜻 (한 줄)
+2) 어려울 만한 단어 2~3개와 아주 쉬운 뜻 (예: brave — 용감한)
+No greetings, no extra text.`;
+
+/* ---------- 리딩책 (내장 창작 스토리 + 사용자가 가져온 책) ---------- */
+const BOOKS_BUILTIN = [
+  { id:"b-goal", emoji:"⚽", title:"The Best Goal", ko:"최고의 골",
+    text:`It is Saturday. Gio runs to the park. His friends are there. "Let's play soccer!" says Ben. Gio is the striker today. The ball comes to him. He runs fast. He kicks the ball hard. The ball flies into the goal! "Goal!" everyone shouts. Gio smiles big. It is the best day ever.` },
+  { id:"b-coco", emoji:"🐶", title:"Coco Finds a Ball", ko:"코코의 공",
+    text:`Coco is a little puppy. She loves to run. One day, she finds a ball under a tree. The ball is old and dirty. Coco takes it to the river. She washes it with her paws. Now the ball is clean! She brings it to her best friend. "Woof! Let's play!" says Coco. They play all day. At night, Coco sleeps with the ball. Good night, Coco.` },
+  { id:"b-rain", emoji:"☔", title:"The Rainy Day", ko:"비 오는 날",
+    text:`Rain falls all morning. Mia looks out the window. "I want to play outside," she says. Mom has an idea. They build a fort with blankets. They read books inside the fort. They eat cookies and drink milk. The fort is warm and cozy. Soon the rain stops. A rainbow comes out. "Wow!" says Mia. Rainy days can be fun too.` }
+];
+function splitSentences(text){
+  const out = [];
+  String(text).replace(/\r/g,"").split(/\n+/).forEach(line=>{
+    line = line.trim().replace(/\s+/g," ");
+    if(!line) return;
+    // 문장 단위로 나눈다 (약어까지 완벽하진 않지만 리딩용으로 충분)
+    const parts = line.match(/[^.!?]+[.!?]+["'”’]?|[^.!?]+$/g) || [line];
+    parts.forEach(p=>{ p = p.trim(); if(p) out.push(p); });
+  });
+  return out.slice(0, 4000);
+}
+const _bookCache = {};
+function getBookSentences(id){
+  if(_bookCache[id]) return _bookCache[id];
+  const b = BOOKS_BUILTIN.find(x=>x.id===id);
+  let sents = [];
+  if(b) sents = splitSentences(b.text);
+  else {
+    try{
+      const raw = localStorage.getItem("english.book."+id);
+      if(raw) sents = JSON.parse(raw).sentences || [];
+    }catch(e){ console.warn(e); }
+  }
+  _bookCache[id] = sents;
+  return sents;
+}
+function ensureBookMeta(id, title, builtin){
+  let m = store.books.find(b=>b.id===id);
+  if(!m){ m = {id, title, builtin:!!builtin, pos:0, addedAt:todayStr()}; store.books.push(m); save(); }
+  return m;
+}
+
 const AI_MODELS = [
   { id:"claude-opus-5",    label:"Opus 5 (기본 · 품질 최고)" },
   { id:"claude-sonnet-5",  label:"Sonnet 5 (균형)" },
@@ -896,6 +948,7 @@ const STORE_KEY = "english.v1";
 function defaultStore(){
   return {
     settings:{ rate:0.9, voiceURI:"", apiKey:"", model:"claude-opus-5", autoSpeak:true },
+    books:[], vocab:[],
     profiles:{
       dad:{ days:[], spoken:0, scen:{}, chat:[], chatMeta:{mode:"free"} },
       gio:{ days:[], spoken:0, scen:{}, pat:{}, chat:[], chatMeta:{mode:"free"} }
@@ -1077,7 +1130,10 @@ const ui = {
   fromView: "home",
   hints: null,       // AI 채팅 힌트 3개
   aiBusy: false,     // AI 요청 중복 방지
-  pendingInput: null // 힌트 클릭 시 입력창에 미리 채울 문장
+  pendingInput: null,// 힌트 클릭 시 입력창에 미리 채울 문장
+  bookId: null,      // 리딩 중인 책
+  showVocab: false,  // 단어장 펼침
+  showPaste: false   // 붙여넣기 폼 펼침
 };
 
 function go(view, setup){
@@ -1094,6 +1150,7 @@ function render(){
   else if(ui.view==="list") app.innerHTML = vList();
   else if(ui.view==="scenario") app.innerHTML = vScenario();
   else if(ui.view==="pattern") app.innerHTML = vPattern();
+  else if(ui.view==="reader") app.innerHTML = vReader();
   else if(ui.view==="settings") app.innerHTML = vSettings();
   window.scrollTo(0,0);
 }
@@ -1163,8 +1220,9 @@ function vList(){
   const tabs = `
   <div class="tabs">
     <button class="${ui.tab==='scen'?'on':''}" onclick="App.setTab('scen')">🎭 시나리오</button>
-    ${isGio? `<button class="${ui.tab==='pat'?'on':''}" onclick="App.setTab('pat')">🧩 패턴 연습</button>`:""}
-    <button class="${ui.tab==='chat'?'on':''}" onclick="App.setTab('chat')">🤖 AI 프리토킹</button>
+    ${isGio? `<button class="${ui.tab==='pat'?'on':''}" onclick="App.setTab('pat')">🧩 패턴</button>`:""}
+    <button class="${ui.tab==='read'?'on':''}" onclick="App.setTab('read')">📖 리딩</button>
+    <button class="${ui.tab==='chat'?'on':''}" onclick="App.setTab('chat')">🤖 AI</button>
   </div>`;
 
   let body = "";
@@ -1212,6 +1270,8 @@ function vList(){
         <div class="progress-dot ${best>=100?'done':''}"></div>
       </button>`;
     }).join("");
+  } else if(ui.tab==="read"){
+    body = vReadTab();
   } else {
     return topbar(c.emoji+" "+c.label) + tabs + vChatBody();
   }
@@ -1454,6 +1514,128 @@ function vPattern(){
     <div class="step-ind">${p.examples.map((_,i)=>`<i class="${i<sess.exIdx?'done':i===sess.exIdx?'on':''}"></i>`).join("")}</div>
     <div class="muted">${sess.exIdx+1} / ${total}</div>
     ${body}
+  </div>`;
+}
+
+/* ----- 리딩책 ----- */
+function bookRow(emoji, title, sub, pos, total, id, deletable){
+  const pct = total? Math.round(Math.min(pos,total)/total*100) : 0;
+  return `
+  <div class="scen-item" onclick="App.openBook('${id}')">
+    <div class="emoji">${emoji}</div>
+    <div class="t">
+      <div class="en">${esc(title)}</div>
+      <div class="ko">${esc(sub)}</div>
+    </div>
+    <div class="pct ${pct>=100?'good':''}">${pct>0? pct+"%":""}</div>
+    ${deletable? `<button class="btn ghost small" onclick="event.stopPropagation();App.deleteBook('${id}')">✕</button>`
+               : `<div class="progress-dot ${pct>=100?'done':''}"></div>`}
+  </div>`;
+}
+function vReadTab(){
+  const pid = ui.profile;
+  const vocab = store.vocab;
+  const builtinRows = BOOKS_BUILTIN.map(b=>{
+    const meta = store.books.find(x=>x.id===b.id);
+    const total = getBookSentences(b.id).length;
+    return bookRow(b.emoji, b.title, b.ko+" · "+total+"문장", meta? meta.pos:0, total, b.id, false);
+  }).join("");
+  const myBooks = store.books.filter(b=>!b.builtin);
+  const myRows = myBooks.map(m=>{
+    const total = getBookSentences(m.id).length;
+    return bookRow("📘", m.title, total+"문장 · "+m.addedAt, m.pos, total, m.id, true);
+  }).join("");
+  return `
+  <div class="card" style="padding:10px 14px">
+    <div style="display:flex;align-items:center;gap:6px">
+      <b>📒 내 단어장</b> <span class="muted">${vocab.length}개</span>
+      <button class="btn ghost small" style="margin-left:auto" onclick="App.toggleVocab()">${ui.showVocab? "접기":"보기"}</button>
+    </div>
+    ${ui.showVocab? (vocab.length? vocab.map((v,i)=>`
+      <div class="key-expr">
+        <div>${esc(v.w)} <span class="ko">${esc(v.at)}</span></div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="play" onclick="App.sayVocab(${i})">🔊</button>
+          <button class="play" onclick="App.removeVocab(${i})">✕</button>
+        </div>
+      </div>`).join("") : `<div class="muted" style="margin-top:8px">책을 읽다가 모르는 단어를 눌러 저장해 보세요!</div>`) : ""}
+  </div>
+  <h3 style="margin:6px 2px">📚 기본 스토리</h3>
+  ${builtinRows}
+  ${myBooks.length? `<h3 style="margin:12px 2px 6px">📘 내 책</h3>`+myRows : ""}
+  <div class="card" style="margin-top:12px">
+    <h3 style="margin-bottom:6px">➕ 내 책 가져오기</h3>
+    <p class="muted" style="margin-bottom:10px">읽고 싶은 영어 글(.txt)이나 대본을 넣어보세요. 책은 <b>이 기기에만</b> 저장되고, 어디에도 업로드되지 않아요.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn ghost small" onclick="document.getElementById('bookFile').click()">📁 .txt 파일 열기</button>
+      <button class="btn ghost small" onclick="App.togglePaste()">📝 글 붙여넣기</button>
+    </div>
+    <input type="file" id="bookFile" accept=".txt,text/plain" style="display:none" onchange="App.addBookFile(this)">
+    ${ui.showPaste? `
+    <input type="text" id="pasteTitle" placeholder="책 제목 (예: Harry Potter 1)" style="width:100%;margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:9px 12px">
+    <textarea id="pasteText" placeholder="여기에 영어 글을 붙여넣으세요" style="width:100%;height:130px;margin-top:8px;border:1px solid var(--line);border-radius:10px;padding:9px 12px;resize:vertical"></textarea>
+    <button class="btn ${pid==='gio'?'orange':'primary'} block" onclick="App.savePastedBook()">저장하고 읽기 시작</button>`:""}
+  </div>`;
+}
+function newReaderSession(idx){
+  return { idx, listening:false, heard:"", result:null, selWord:null,
+           playing:false, explain:null, explaining:false, savedWord:null };
+}
+function vReader(){
+  const meta = store.books.find(b=>b.id===ui.bookId);
+  const sents = getBookSentences(ui.bookId);
+  const sess = ui.session;
+  const total = sents.length;
+  if(!meta || !total) return topbar("📖 리딩") + `<div class="card center muted">책을 불러오지 못했어요.</div>`;
+  if(sess.idx >= total){
+    return topbar("📖 "+esc(meta.title)) + `
+    <div class="practice-box">
+      <div style="font-size:3rem">🏆</div>
+      <h3>다 읽었어요!</h3>
+      <div class="muted" style="margin-top:4px">${total}문장 완독! 정말 대단해요 👏</div>
+      <button class="btn ${ui.profile==='gio'?'orange':'primary'} block" onclick="App.restartBook()">🔁 처음부터 다시 읽기</button>
+      <button class="btn ghost block" onclick="App.back()">책장으로</button>
+    </div>`;
+  }
+  const s = sents[sess.idx];
+  const words = s.split(" ");
+  const sentHtml = sess.result
+    ? markedTarget(s, sess.result.marks)
+    : words.map((w,i)=>`<span class="rword ${sess.selWord===i?'sel':''}" onclick="App.tapWord(${i})">${esc(w)}</span>`).join(" ");
+  const selRaw = sess.selWord!=null && words[sess.selWord] ? words[sess.selWord].replace(/[^a-zA-Z']/g,"") : "";
+  return topbar("📖 "+esc(meta.title)) + `
+  <div class="card">
+    <div class="muted">${sess.idx+1} / ${total} 문장${sess.playing? " · ▶ 이어 듣는 중":""}</div>
+    <div class="rbar"><i style="width:${Math.round(sess.idx/total*100)}%"></i></div>
+    ${sess.idx>0? `<div class="muted" style="font-size:.85rem;margin-bottom:8px">${esc(sents[sess.idx-1])}</div>`:""}
+    <div style="font-size:1.3rem;line-height:1.8;font-weight:600">${sentHtml}</div>
+    ${sess.result? "" : `<div class="muted" style="margin-top:6px;font-size:.78rem">모르는 단어를 눌러보세요 👆</div>`}
+    ${selRaw? `
+    <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="chip orange">${esc(selRaw)}</span>
+      <button class="btn ghost small" onclick="App.sayWord()">🔊 발음</button>
+      <button class="btn orange small" onclick="App.addVocab()">➕ 단어장</button>
+    </div>`:""}
+    ${sess.savedWord? `<div style="margin-top:8px"><span class="chip green">✓ ${esc(sess.savedWord)} 단어장에 저장!</span></div>`:""}
+  </div>
+  <div class="practice-box">
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+      <button class="btn ghost small" onclick="App.saySent(0)">🔊 듣기</button>
+      <button class="btn ghost small" onclick="App.saySent(1)">🐢 천천히</button>
+      ${sess.playing? `<button class="btn ghost small" onclick="App.readerStop()">⏹ 멈춤</button>`
+                    : `<button class="btn ghost small" onclick="App.readerPlay()">▶ 이어 듣기</button>`}
+      ${store.settings.apiKey? `<button class="btn ghost small" onclick="App.explainSent()">🤖 무슨 뜻?</button>`:""}
+    </div>
+    ${sess.explaining? `<div class="typing" style="margin-top:8px">💭 설명 만드는 중...</div>`
+      : sess.explain? `<div class="heard" style="text-align:left;white-space:pre-wrap;margin-top:10px">${esc(sess.explain)}</div>`:""}
+    ${sttUI()}
+    ${sess.result? `
+      <div class="score-big ${scoreClass(sess.result.pct)}">${sess.result.pct}%</div>
+      <div>${scoreMsg(sess.result.pct)}</div>`:""}
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn ghost" style="flex:1" onclick="App.readerPrev()" ${sess.idx===0?"disabled":""}>← 이전</button>
+      <button class="btn ${ui.profile==='gio'?'orange':'primary'}" style="flex:2" onclick="App.readerNext()">다음 →</button>
+    </div>
   </div>`;
 }
 
@@ -1791,7 +1973,8 @@ const App = {
   back(to){
     stopSpeak(); sttStop();
     if(to){ ui.view = to; render(); return; }
-    if(ui.view==="scenario" || ui.view==="pattern"){ if(ui.view==="pattern") ui.tab="pat"; go("list"); }
+    if(ui.view==="reader"){ ui.tab = "read"; go("list"); }
+    else if(ui.view==="scenario" || ui.view==="pattern"){ if(ui.view==="pattern") ui.tab="pat"; go("list"); }
     else if(ui.view==="list") go("home");
     else go("home");
   },
@@ -1861,7 +2044,7 @@ const App = {
       onInterim(t){ sess.heard = t; const el = document.querySelector(".heard"); if(el) el.textContent = t||"..."; },
       onEnd(finalText){
         sess.listening = false;
-        if(ui.view!=="scenario" && ui.view!=="pattern"){ return; }
+        if(ui.view!=="scenario" && ui.view!=="pattern" && ui.view!=="reader"){ return; }
         if(finalText){
           sess.heard = finalText;
           sess.result = scoreSpeech(target, finalText);
@@ -1891,6 +2074,10 @@ const App = {
     if(ui.view==="pattern"){
       const p = getPattern(ui.patternId);
       return p.examples[ui.session.exIdx].en;
+    }
+    if(ui.view==="reader"){
+      const sents = getBookSentences(ui.bookId);
+      return sents[ui.session.idx] || null;
     }
     return null;
   },
@@ -2017,6 +2204,150 @@ const App = {
       save();
       render();
     }
+  },
+
+  /* 리딩책 */
+  openBook(id){
+    const b = BOOKS_BUILTIN.find(x=>x.id===id);
+    const meta = ensureBookMeta(id, b? b.title : (store.books.find(x=>x.id===id)||{}).title || "내 책", !!b);
+    const total = getBookSentences(id).length;
+    if(!total){ alert("책 내용을 불러오지 못했어요."); return; }
+    ui.bookId = id;
+    ui.session = newReaderSession(Math.min(meta.pos||0, total));
+    go("reader");
+  },
+  deleteBook(id){
+    if(!confirm("이 책을 삭제할까요? (단어장은 남아요)")) return;
+    store.books = store.books.filter(b=>b.id!==id);
+    delete _bookCache[id];
+    try{ localStorage.removeItem("english.book."+id); }catch(e){}
+    save(); render();
+  },
+  restartBook(){
+    const meta = store.books.find(b=>b.id===ui.bookId);
+    meta.pos = 0; save();
+    ui.session = newReaderSession(0);
+    render();
+  },
+  readerNext(){
+    const meta = store.books.find(b=>b.id===ui.bookId);
+    const sess = ui.session;
+    sess.idx++;
+    meta.pos = sess.idx;
+    sess.result = null; sess.heard = ""; sess.selWord = null;
+    sess.explain = null; sess.savedWord = null;
+    markPracticed(ui.profile);
+    save(); render();
+  },
+  readerPrev(){
+    const sess = ui.session;
+    if(sess.idx===0) return;
+    sess.idx--;
+    const meta = store.books.find(b=>b.id===ui.bookId);
+    meta.pos = sess.idx;
+    sess.result = null; sess.heard = ""; sess.selWord = null;
+    sess.explain = null; sess.savedWord = null;
+    save(); render();
+  },
+  saySent(slow){
+    const sents = getBookSentences(ui.bookId);
+    const s = sents[ui.session.idx];
+    if(s) speak(s, slow? {rate:0.6} : {});
+  },
+  readerPlay(){
+    const sess = ui.session;
+    const sents = getBookSentences(ui.bookId);
+    const meta = store.books.find(b=>b.id===ui.bookId);
+    sess.playing = true;
+    const playNext = ()=>{
+      if(!sess.playing || ui.view!=="reader" || ui.session!==sess) return;
+      if(sess.idx >= sents.length){ sess.playing = false; markPracticed(ui.profile); save(); render(); return; }
+      render();
+      speak(sents[sess.idx], { onend: ()=>{
+        if(!sess.playing || ui.session!==sess) return;
+        sess.idx++; meta.pos = sess.idx; save();
+        setTimeout(playNext, 400);
+      }});
+    };
+    playNext();
+  },
+  readerStop(){ ui.session.playing = false; stopSpeak(); render(); },
+  tapWord(i){
+    const sess = ui.session;
+    if(sess.result) return;
+    sess.selWord = (sess.selWord===i)? null : i;
+    sess.savedWord = null;
+    if(sess.selWord!=null){
+      const sents = getBookSentences(ui.bookId);
+      const w = sents[sess.idx].split(" ")[i].replace(/[^a-zA-Z']/g,"");
+      if(w) speak(w);
+    }
+    render();
+  },
+  sayWord(){
+    const sess = ui.session;
+    if(sess.selWord==null) return;
+    const sents = getBookSentences(ui.bookId);
+    const w = sents[sess.idx].split(" ")[sess.selWord].replace(/[^a-zA-Z']/g,"");
+    if(w) speak(w);
+  },
+  addVocab(){
+    const sess = ui.session;
+    if(sess.selWord==null) return;
+    const sents = getBookSentences(ui.bookId);
+    const w = sents[sess.idx].split(" ")[sess.selWord].replace(/[^a-zA-Z']/g,"").toLowerCase();
+    if(!w) return;
+    if(!store.vocab.some(v=>v.w===w)) store.vocab.push({w, at:todayStr()});
+    sess.savedWord = w; sess.selWord = null;
+    save(); render();
+  },
+  sayVocab(i){ const v = store.vocab[i]; if(v) speak(v.w); },
+  removeVocab(i){ store.vocab.splice(i,1); save(); render(); },
+  toggleVocab(){ ui.showVocab = !ui.showVocab; render(); },
+  togglePaste(){ ui.showPaste = !ui.showPaste; render(); },
+  addBookFile(input){
+    const f = input.files && input.files[0];
+    if(!f) return;
+    if(f.size > 2*1024*1024){ alert("파일이 너무 커요 (2MB 이하 .txt만 지원)."); input.value=""; return; }
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      App._saveBook(f.name.replace(/\.[^.]+$/,""), String(reader.result));
+      input.value = "";
+    };
+    reader.readAsText(f);
+  },
+  savePastedBook(){
+    const title = ($("pasteTitle")||{}).value || "";
+    const text = ($("pasteText")||{}).value || "";
+    App._saveBook(title.trim() || "내 책", text);
+  },
+  _saveBook(title, text){
+    const sents = splitSentences(text);
+    if(sents.length < 3){ alert("텍스트를 읽지 못했어요. 영어 문장이 들어있는지 확인해 주세요."); return; }
+    const id = "bk"+Date.now();
+    try{
+      localStorage.setItem("english.book."+id, JSON.stringify({sentences:sents}));
+    }catch(e){ alert("저장 공간이 부족해요. 안 읽는 책을 삭제하고 다시 시도해 주세요."); return; }
+    _bookCache[id] = sents;
+    store.books.push({id, title, builtin:false, pos:0, addedAt:todayStr()});
+    ui.showPaste = false;
+    save();
+    App.openBook(id);
+  },
+  async explainSent(){
+    if(ui.aiBusy) return;
+    const sess = ui.session;
+    const sents = getBookSentences(ui.bookId);
+    const s = sents[sess.idx];
+    ui.aiBusy = true; sess.explaining = true; render();
+    try{
+      const rep = await callAPI(EXPLAIN_PROMPT, [{role:"user", content:s}]);
+      if(ui.session===sess){ sess.explain = rep; }
+    }catch(e){
+      if(ui.session===sess) sess.explain = "⚠️ "+(e.message||"설명을 가져오지 못했어요.");
+    }
+    ui.aiBusy = false;
+    if(ui.session===sess){ sess.explaining = false; render(); }
   },
 
   /* AI 채팅 */
