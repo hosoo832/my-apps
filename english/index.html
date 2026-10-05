@@ -1246,10 +1246,11 @@ const AI_MODELS = [
   { id:"claude-sonnet-5",  label:"Sonnet 5 (균형)" },
   { id:"claude-haiku-4-5", label:"Haiku 4.5 (빠름 · 저렴)" }
 ];
+// 2.5 세대는 신규 사용자에게 막혀 404가 난다 (2026) — 3.x 세대만 노출
 const GEMINI_MODELS = [
-  { id:"gemini-2.5-flash",      label:"Gemini 2.5 Flash (기본 · 무료 추천)" },
-  { id:"gemini-2.5-pro",        label:"Gemini 2.5 Pro (품질 최고)" },
-  { id:"gemini-2.5-flash-lite", label:"Gemini 2.5 Flash-Lite (가장 빠름)" }
+  { id:"gemini-3.8-flash",      label:"Gemini 3.8 Flash (기본 · 무료 추천)" },
+  { id:"gemini-3.1-pro-preview",label:"Gemini 3.1 Pro (품질 최고 · 미리보기)" },
+  { id:"gemini-3.5-flash-lite", label:"Gemini 3.5 Flash-Lite (가장 빠름)" }
 ];
 // 키 모양으로 공급자 자동 인식: Google 키는 AQ.(2026~ 새 형식) 또는 AIza(구형), Anthropic 키는 sk-ant-…
 function apiProvider(){
@@ -2399,11 +2400,11 @@ async function callGemini(system, messages, maxTokens){
   const body = {
     system_instruction:{ parts:[{ text: system }] },
     contents: messages.map(m=>({ role: m.role==="assistant"?"model":"user", parts:[{ text: m.content }] })),
-    generationConfig:{ maxOutputTokens: maxTokens || 1024 }
+    // '생각' 토큰이 출력 한도를 같이 먹으므로 여유분을 더해 빈 답을 방지
+    generationConfig:{ maxOutputTokens: (maxTokens || 1024) + 4096 }
   };
-  // 2.5 모델의 '생각' 토큰이 출력 한도를 먹어 빈 답이 오는 것 방지
-  if(model.includes("flash")) body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
-  else body.generationConfig.maxOutputTokens += 4096;
+  // 3.8 Flash는 thinkingLevel 지원 — low로 낮춰 답을 빠르게 (타 모델은 기본값 유지)
+  if(model==="gemini-3.8-flash") body.generationConfig.thinkingConfig = { thinkingLevel: "low" };
   const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent", {
     method:"POST",
     headers:{ "content-type":"application/json", "x-goog-api-key": store.settings.apiKey },
