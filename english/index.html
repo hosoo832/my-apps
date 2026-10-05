@@ -1252,7 +1252,12 @@ const GEMINI_MODELS = [
   { id:"gemini-2.5-flash-lite", label:"Gemini 2.5 Flash-Lite (가장 빠름)" }
 ];
 // 키 모양으로 공급자 자동 인식: Google AI Studio 키는 AIza…, Anthropic 키는 sk-ant-…
-function apiProvider(){ return (store.settings.apiKey||"").startsWith("AIza") ? "gemini" : "claude"; }
+function apiProvider(){
+  const k = store.settings.apiKey||"";
+  if(k.startsWith("sk-ant")) return "claude";
+  if(k.includes("AIza")) return "gemini";
+  return "claude";
+}
 function providerModels(){ return apiProvider()==="gemini" ? GEMINI_MODELS : AI_MODELS; }
 function activeModel(){
   const list = providerModels();
@@ -2469,7 +2474,7 @@ function vSettings(){
       <label>API 키</label>
       <input type="password" placeholder="AIza... 또는 sk-ant-..." value="${esc(st.apiKey)}" onchange="App.setApiKey(this.value)">
     </div>
-    ${st.apiKey? `<p class="muted" style="margin:-2px 0 6px">${apiProvider()==="gemini"? "✅ Google Gemini 키로 인식했어요":"✅ Claude(Anthropic) 키로 인식했어요"}</p>`:""}
+    ${st.apiKey? `<p class="muted" style="margin:-2px 0 6px">${apiProvider()==="gemini"? "✅ Google Gemini 키로 인식했어요":"✅ Claude(Anthropic) 키로 인식했어요"} · ${esc(st.apiKey.slice(0,8))}… (${st.apiKey.length}자)</p>`:""}
     <div class="set-row">
       <label>모델</label>
       <select onchange="App.setModel(this.value)">
@@ -3237,7 +3242,8 @@ const App = {
   setRate(v){ store.settings.rate = parseFloat(v); save(); },
   setVoice(v){ store.settings.voiceURI = v; save(); },
   setApiKey(v){
-    store.settings.apiKey = v.trim();
+    // 폰에서 붙여넣을 때 섞이는 공백·줄바꿈 제거
+    store.settings.apiKey = v.replace(/\s+/g,"");
     // 키 종류가 바뀌면 그 공급자의 기본 모델로 맞춘다
     const list = providerModels();
     if(!list.some(m=>m.id===store.settings.model)) store.settings.model = list[0].id;
