@@ -106,16 +106,24 @@ input,select,textarea{font-family:inherit;font-size:1rem}
 .rbar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin:8px 0}
 .rbar i{display:block;height:100%;background:var(--green)}
 .scen-item{cursor:pointer}
-.chapbanner{border-radius:14px;padding:16px;color:#fff;margin-bottom:10px;text-align:center}
-.chapbanner .em{font-size:2rem;letter-spacing:8px}
-.chapbanner .tt{font-weight:800;font-size:1.05rem;margin-top:6px;text-shadow:0 1px 3px rgba(0,0,0,.4)}
-.chapbanner.mini{padding:8px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px;text-align:left}
-.chapbanner.mini .em{font-size:1.2rem;letter-spacing:2px}
-.chapbanner.mini .tt{margin-top:0;font-size:.95rem}
 .qopt{display:block;width:100%;text-align:left;background:#fff;border:2px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:8px;font-size:.95rem}
 .qopt.ok{border-color:var(--green);background:var(--green-soft)}
 .qopt.no{border-color:var(--red);background:var(--red-soft)}
 .wchip{display:inline-block;background:#fff;border:1.5px solid var(--violet);color:var(--violet);border-radius:999px;padding:5px 12px;margin:3px 2px;font-weight:700;font-size:.88rem}
+/* 레슨 */
+.lart{border-radius:16px;overflow:hidden;line-height:0;margin-bottom:10px;border:1px solid var(--line)}
+.rword.hl{background:#fef3c7;border-bottom:2px solid #f59e0b;border-radius:4px}
+.wpop{background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:10px 12px;margin-top:10px;text-align:left}
+.ltabs{display:flex;gap:6px;margin:10px 0}
+.ltabs button{flex:1;padding:8px 2px;border-radius:999px;font-weight:700;font-size:.82rem;background:#fff;border:1.5px solid var(--line);color:var(--sub)}
+.ltabs button.on{border-color:var(--orange);background:var(--orange-soft);color:#9a3412}
+.vrow{display:flex;align-items:baseline;gap:8px;padding:9px 2px;border-bottom:1px dashed var(--line);text-align:left}
+.vrow:last-child{border-bottom:none}
+.vrow .w{font-weight:800;min-width:90px}
+.vrow .p{color:#b45309;font-size:.8rem}
+.vrow .ko{color:var(--ink);font-size:.9rem;flex:1}
+.daylabel{text-align:center;letter-spacing:4px;color:var(--sub);font-size:.72rem;font-weight:700;margin-top:2px}
+.lesson-title{text-align:center;font-size:1.25rem;font-weight:800;margin:2px 0 6px}
 /* pattern chips */
 .chip-pool{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:14px 0;min-height:44px}
 .word-chip{padding:10px 16px;border-radius:12px;background:#fff;border:2px solid var(--orange);
@@ -968,7 +976,6 @@ function getBook(id){
   _bookCache[id] = book;
   return book;
 }
-function curSents(){ const b = getBook(ui.bookId); return (b.chapters[ui.ci]||{sents:[]}).sents; }
 function bookTotal(book){ return book.chapters.reduce((a,c)=>a+c.sents.length,0); }
 function posOf(meta){
   if(typeof meta.pos === "number") meta.pos = {c:0, s:meta.pos}; // v1 → v2 마이그레이션
@@ -992,23 +999,76 @@ function ensureBookMeta(id, title, builtin){
   return m;
 }
 
-/* 장면 배너: 챕터 키워드로 분위기 아트를 고른다 (오리지널 아트) */
+/* 레슨: 하루 30분 분량(약 15문장)으로 나눈다 — Day 1, Day 2, ... */
+const LESSON_SIZE = 15;
+function lessonsOf(book){
+  if(book._lessons) return book._lessons;
+  const ls = [];
+  book.chapters.forEach((ch,ci)=>{
+    const n = ch.sents.length;
+    if(!n) return;
+    const parts = Math.max(1, Math.round(n/LESSON_SIZE));
+    const per = Math.ceil(n/parts);
+    for(let p=0; p<parts; p++){
+      const start = p*per, end = Math.min(n, (p+1)*per);
+      if(start >= end) break;
+      ls.push({ci, start, end, chTitle: ch.title, part: p+1, parts});
+    }
+  });
+  book._lessons = ls;
+  return ls;
+}
+function lessonSents(book, L){ return book.chapters[L.ci].sents.slice(L.start, L.end); }
+function curLesson(){ const b = getBook(ui.bookId); return lessonsOf(b)[ui.li]; }
+function curSents(){ const b = getBook(ui.bookId); const L = lessonsOf(b)[ui.li]; return L? lessonSents(b, L) : []; }
+function ldoneOf(meta){
+  if(!meta.ldone) meta.ldone = {};
+  if(meta.cur == null) meta.cur = 0;
+  return meta.ldone;
+}
+function getLessonData(bookId, li){
+  try{
+    const raw = localStorage.getItem("english.lesson."+bookId+"."+li);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  return null;
+}
+function setLessonData(bookId, li, data){
+  try{ localStorage.setItem("english.lesson."+bookId+"."+li, JSON.stringify(data)); return true; }
+  catch(e){ return false; }
+}
+/* 레슨 자동 생성 프롬프트 — 사용자가 불러온 글에서 그때그때 만든다 */
+const LESSON_PROMPT = `You are creating a daily English reading lesson for a Korean 4th-grade elementary student. You get numbered English sentences from a story the student is reading. Reply with ONLY a JSON object, no other text:
+{"trans": ["..."],
+ "words": [{"w":"word","p":"한글 발음","ko":"쉬운 한국어 뜻"}],
+ "grammar": [{"t":"문형 (예: be proud to + 동사)","ko":"뜻","ex":"a sentence from the text that uses it"}],
+ "expr": [{"en":"expression","ko":"뜻 (뉘앙스 포함)"}],
+ "quiz": [{"q":"...","opts":["...","...","...","..."],"a":0}]}
+Rules:
+- "trans": a natural, friendly Korean translation of EVERY sentence, same order and same count as the input.
+- "words": 10-20 useful words that appear in the text, hardest first. Skip character and place names. "p" is Korean-letter pronunciation like [미스테리어스].
+- "grammar": 1-2 sentence patterns from the text, explained very simply.
+- "expr": 1-2 colloquial expressions from the text.
+- "quiz": 4 multiple-choice questions written in simple Korean — 2 about word meanings (like "'beefy'의 뜻은?") and 2 about what happened in the story.
+Keep everything short and friendly for a 10-year-old.`;
+
+/* 장면 일러스트: 본문 키워드로 동화책 풍 오리지널 풍경을 고른다 */
 const SCENE_THEMES = [
-  { re:/night|dark|moon|star|midnight/gi, bg:["#1e293b","#4c1d95"], em:"🌙⭐✨" },
-  { re:/rain|storm|thunder|lightning/gi, bg:["#334155","#0e7490"], em:"🌧️⚡☔" },
-  { re:/castle|tower|hall|king|queen|palace/gi, bg:["#4338ca","#7c3aed"], em:"🏰🕯️🛡️" },
-  { re:/forest|tree|wood|garden/gi, bg:["#14532d","#65a30d"], em:"🌲🌿🦉" },
-  { re:/train|station|platform|railway/gi, bg:["#7f1d1d","#b45309"], em:"🚂💨🧳" },
-  { re:/school|class|teacher|lesson|library/gi, bg:["#1d4ed8","#0891b2"], em:"🏫📚✏️" },
-  { re:/magic|wand|spell|wizard|witch|potion/gi, bg:["#6d28d9","#db2777"], em:"✨🪄🔮" },
-  { re:/sea|ocean|boat|ship|island|lake|river/gi, bg:["#075985","#0d9488"], em:"🌊⛵🐟" },
-  { re:/dragon|monster|beast|giant/gi, bg:["#7f1d1d","#ea580c"], em:"🐉🔥🗡️" },
-  { re:/owl|bird|fly|flying|sky/gi, bg:["#78350f","#ca8a04"], em:"🦉🪶☁️" },
-  { re:/dinner|kitchen|feast|cake|breakfast|food/gi, bg:["#9a3412","#eab308"], em:"🍗🥧🕰️" },
-  { re:/snow|winter|ice|cold/gi, bg:["#1e3a8a","#0ea5e9"], em:"❄️⛄🌨️" },
-  { re:/soccer|ball|game|play|park/gi, bg:["#166534","#16a34a"], em:"⚽🥅🌳" }
+  { re:/night|dark|moon|star|midnight/gi, bg:["#1e293b","#4c1d95"], em:"🌙", m:"night" },
+  { re:/rain|storm|thunder|lightning/gi, bg:["#334155","#0e7490"], em:"🌧️", m:"rain" },
+  { re:/castle|tower|hall|king|queen|palace/gi, bg:["#312e81","#7c3aed"], em:"🏰", m:"castle" },
+  { re:/forest|tree|wood|garden/gi, bg:["#14532d","#65a30d"], em:"🌲", m:"trees" },
+  { re:/train|station|platform|railway/gi, bg:["#7f1d1d","#b45309"], em:"🚂", m:"train" },
+  { re:/school|class|teacher|lesson|library/gi, bg:["#1d4ed8","#0891b2"], em:"🏫", m:"house" },
+  { re:/magic|wand|spell|wizard|witch|potion/gi, bg:["#6d28d9","#db2777"], em:"✨", m:"magic" },
+  { re:/sea|ocean|boat|ship|island|lake|river/gi, bg:["#075985","#0d9488"], em:"🌊", m:"sea" },
+  { re:/dragon|monster|beast|giant|fire/gi, bg:["#7f1d1d","#ea580c"], em:"🔥", m:"peaks" },
+  { re:/owl|bird|fly|flying|sky|cloud/gi, bg:["#0369a1","#7dd3fc"], em:"🕊️", m:"birds" },
+  { re:/dinner|kitchen|feast|cake|breakfast|food/gi, bg:["#9a3412","#eab308"], em:"🥧", m:"bowl" },
+  { re:/snow|winter|ice|cold/gi, bg:["#1e3a8a","#0ea5e9"], em:"❄️", m:"snow" },
+  { re:/soccer|ball|goal|game|park/gi, bg:["#166534","#16a34a"], em:"⚽", m:"ball" }
 ];
-const SCENE_DEFAULT = { bg:["#2563eb","#7c3aed"], em:"📖✨🌟" };
+const SCENE_DEFAULT = { bg:["#2563eb","#7c3aed"], em:"📖", m:"book" };
 function sceneTheme(ch){
   const text = ch.sents.slice(0,80).join(" ");
   let best = null, bestN = 1;
@@ -1019,17 +1079,103 @@ function sceneTheme(ch){
   });
   return best || SCENE_DEFAULT;
 }
-function bannerHTML(ch, mini){
-  const t = sceneTheme(ch);
-  return `<div class="chapbanner ${mini?"mini":""}" style="background:linear-gradient(135deg,${t.bg[0]},${t.bg[1]})">
-    <div class="em">${t.em}</div>${ch.title? `<div class="tt">${esc(ch.title)}</div>`:""}
-  </div>`;
+function _stars(n, w, h){
+  let s = "";
+  for(let i=0;i<n;i++) s += `<circle cx="${(i*97+13)%w}" cy="${(i*53+9)%h}" r="${1+(i%2)}" fill="#fff" opacity="${(0.4+(i%3)*0.2).toFixed(1)}"/>`;
+  return s;
+}
+function _moon(skyColor){
+  return `<circle cx="336" cy="34" r="15" fill="#fde68a"/><circle cx="329" cy="29" r="12" fill="${skyColor}"/>`;
+}
+function _clouds(){
+  return `<ellipse cx="86" cy="36" rx="34" ry="12" fill="#fff" opacity=".85"/><ellipse cx="114" cy="30" rx="22" ry="9" fill="#fff" opacity=".8"/><ellipse cx="298" cy="54" rx="40" ry="13" fill="#fff" opacity=".7"/>`;
+}
+function _hills(c, op){ return `<ellipse cx="90" cy="178" rx="200" ry="58" fill="${c}" opacity="${op||1}"/><ellipse cx="330" cy="188" rx="230" ry="68" fill="${c}" opacity="${(op||1)*0.85}"/>`; }
+function sceneArt(t, sky){
+  const dk = "rgba(15,23,42,.45)";
+  const lite = "rgba(255,255,255,.9)";
+  switch(t.m){
+    case "night":
+      return _stars(16,400,75) + _moon(sky) + _hills(dk);
+    case "rain":
+      return `<ellipse cx="110" cy="30" rx="44" ry="15" fill="#cbd5e1"/><ellipse cx="300" cy="40" rx="50" ry="16" fill="#cbd5e1" opacity=".9"/>
+        <g stroke="#bae6fd" stroke-width="2.5" stroke-linecap="round" opacity=".8">
+          <line x1="90" y1="52" x2="84" y2="70"/><line x1="120" y1="52" x2="114" y2="70"/><line x1="290" y1="62" x2="284" y2="80"/><line x1="320" y1="62" x2="314" y2="80"/></g>
+        <g fill="${dk}"><rect x="165" y="82" width="70" height="40"/><polygon points="155,84 200,56 245,84"/></g>
+        <rect x="192" y="98" width="16" height="14" fill="#fde68a"/>` + _hills(dk,0.8);
+    case "castle":
+      return _stars(10,400,60) + _moon(sky) + _hills(dk,0.8) + `<g fill="${dk}">
+        <rect x="150" y="62" width="18" height="60"/><polygon points="148,62 159,42 170,62"/>
+        <rect x="196" y="48" width="22" height="74"/><polygon points="194,48 207,26 220,48"/>
+        <rect x="246" y="64" width="18" height="58"/><polygon points="244,64 255,46 266,64"/>
+        <rect x="166" y="86" width="80" height="36"/></g>
+        <g fill="#fde68a"><rect x="156" y="76" width="5" height="8"/><rect x="204" y="64" width="6" height="9"/><rect x="252" y="78" width="5" height="8"/></g>`;
+    case "trees":
+      return `<circle cx="330" cy="34" r="14" fill="#fef9c3" opacity=".9"/>` + _hills(dk,0.6) + `<g fill="${dk}">
+        <polygon points="80,116 102,58 124,116"/><rect x="98" y="116" width="8" height="12"/>
+        <polygon points="160,116 188,42 216,116"/><rect x="184" y="116" width="9" height="14"/>
+        <polygon points="250,116 274,62 298,116"/><rect x="270" y="116" width="8" height="12"/></g>`;
+    case "train":
+      return `<g fill="#fff" opacity=".8"><circle cx="128" cy="40" r="7"/><circle cx="143" cy="30" r="9"/><circle cx="162" cy="21" r="11"/></g>
+        <rect x="0" y="116" width="400" height="4" fill="${dk}"/>
+        <g fill="${dk}"><rect x="118" y="76" width="130" height="38" rx="6"/><rect x="110" y="62" width="42" height="22" rx="4"/><rect x="117" y="46" width="12" height="18"/>
+        <circle cx="140" cy="116" r="9"/><circle cx="183" cy="116" r="9"/><circle cx="226" cy="116" r="9"/></g>
+        <g fill="#fde68a"><rect x="164" y="84" width="15" height="13" rx="2"/><rect x="190" y="84" width="15" height="13" rx="2"/><rect x="216" y="84" width="15" height="13" rx="2"/></g>`;
+    case "house":
+      return _clouds() + _hills(dk,0.6) + `<g fill="${dk}"><rect x="168" y="78" width="72" height="44"/><polygon points="158,80 204,50 250,80"/><rect x="236" y="42" width="7" height="24"/></g>
+        <polygon points="243,42 263,47 243,53" fill="#f59e0b"/>
+        <rect x="182" y="92" width="14" height="14" fill="#fde68a"/><rect x="212" y="92" width="14" height="14" fill="#fde68a"/>`;
+    case "magic":
+      return _stars(20,400,110) + `<g fill="${dk}"><polygon points="180,96 214,30 232,96"/><ellipse cx="206" cy="98" rx="42" ry="9"/></g>
+        <g fill="#fde68a"><polygon points="300,46 304,58 316,58 306,66 310,78 300,70 290,78 294,66 284,58 296,58"/>
+        <polygon points="110,70 113,78 121,78 114,83 117,91 110,86 103,91 106,83 99,78 107,78"/></g>`;
+    case "sea":
+      return `<circle cx="330" cy="32" r="14" fill="#fef9c3" opacity=".95"/>
+        <g fill="none" stroke="${lite}" stroke-width="3" stroke-linecap="round" opacity=".55">
+          <path d="M20 118 q14 -9 28 0 q14 9 28 0"/><path d="M300 124 q14 -9 28 0 q14 9 28 0"/><path d="M150 132 q14 -9 28 0 q14 9 28 0"/></g>
+        <g fill="${dk}"><path d="M160 108 L250 108 L232 126 L178 126 Z"/><rect x="202" y="58" width="5" height="50"/></g>
+        <polygon points="207,60 207,100 244,100" fill="${lite}"/>`;
+    case "peaks":
+      return _stars(10,400,55) + `<g fill="${dk}"><polygon points="40,128 120,38 200,128"/><polygon points="160,128 250,22 340,128"/></g>
+        <polygon points="238,36 250,22 262,36 250,43" fill="#fff" opacity=".9"/>
+        <g fill="#fb923c"><circle cx="300" cy="70" r="3"/><circle cx="316" cy="56" r="2.5"/><circle cx="288" cy="52" r="2"/></g>`;
+    case "birds":
+      return _clouds() + `<g stroke="${dk}" stroke-width="3" fill="none" stroke-linecap="round">
+        <path d="M180 56 q8 -10 16 0 q8 -10 16 0"/><path d="M240 40 q7 -9 14 0 q7 -9 14 0"/><path d="M140 80 q6 -8 12 0 q6 -8 12 0"/></g>` + _hills(dk,0.5);
+    case "bowl":
+      return `<rect x="110" y="104" width="180" height="6" rx="3" fill="${dk}"/>
+        <path d="M160 74 L240 74 A40 34 0 0 1 160 74 Z" fill="${lite}"/>
+        <path d="M160 74 L240 74 A40 34 0 0 1 160 74 Z" fill="${dk}" opacity=".25"/>
+        <g stroke="${lite}" stroke-width="3" fill="none" stroke-linecap="round" opacity=".8">
+          <path d="M185 60 q4 -8 0 -16"/><path d="M200 58 q4 -8 0 -18"/><path d="M215 60 q4 -8 0 -16"/></g>`;
+    case "snow":
+      return _stars(22,400,120) + _hills("#e2e8f0",0.9) + `<g fill="${dk}"><polygon points="270,112 294,62 318,112"/><rect x="289" y="112" width="8" height="10"/></g>
+        <circle cx="130" cy="104" r="16" fill="#fff"/><circle cx="130" cy="82" r="11" fill="#fff"/>`;
+    case "ball":
+      return `<rect x="0" y="100" width="400" height="50" fill="#15803d" opacity=".55"/>
+        <g stroke="${lite}" stroke-width="4" fill="none"><path d="M250 112 L250 66 L330 66 L330 112"/></g>
+        <circle cx="180" cy="104" r="14" fill="#fff"/><path d="M180 96 l7 5 -3 8 h-8 l-3 -8 Z" fill="${dk}"/>
+        <circle cx="60" cy="36" r="14" fill="#fef9c3" opacity=".9"/>`;
+    default:
+      return _stars(12,400,70) + `<g fill="${lite}"><path d="M200 70 Q160 56 120 70 L120 112 Q160 98 200 112 Z"/><path d="M200 70 Q240 56 280 70 L280 112 Q240 98 200 112 Z"/></g>
+        <polygon points="300,34 303,42 311,42 305,47 307,55 300,50 293,55 295,47 289,42 297,42" fill="#fde68a"/>`;
+  }
+}
+function illustHTML(sents, uid){
+  const t = sceneTheme({sents});
+  return `<div class="lart"><svg viewBox="0 0 400 150" width="100%" preserveAspectRatio="xMidYMid slice" role="img">
+    <defs><linearGradient id="g${uid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="${t.bg[0]}"/><stop offset="1" stop-color="${t.bg[1]}"/>
+    </linearGradient></defs>
+    <rect width="400" height="150" fill="url(#g${uid})"/>
+    ${sceneArt(t, t.bg[0])}
+  </svg></div>`;
 }
 
 /* 기초 단어 사전 — 챕터 단어(어려운 단어) 추출용 */
 const COMMON = new Set(("the a an and or but so if then than that this these those there here is are was were be been being am do does did done have has had having will would can could shall should may might must not no yes it its i you he she we they them him her his hers our your their my mine me us who what when where why how which all any some many much more most other another each every both few little lot very too also just only even still again once never always often sometimes now soon later today tomorrow yesterday morning night day week year time hour minute man woman boy girl child children people friend family mother father mom dad brother sister baby name thing something anything nothing everything way back home house room door window school book pen paper word letter story water food bread milk egg apple fruit cake fish meat rice dog cat bird horse animal tree flower grass sun moon star sky rain snow wind fire air earth world country city town street road car bus train ship boat hand head eye ear nose mouth face hair foot feet leg arm body heart went gone going come came coming get got getting make made making take took taken give gave given find found see saw seen look looked looking watch want wanted like liked love loved know knew known think thought say said says tell told talk speak ask asked answer call called put set run ran running walk walked play played work worked help helped open opened close closed start started stop stopped turn turned move moved keep kept let leave left live lived eat ate drink drank sleep slept sit sat stand stood read write wrote hear heard listen feel felt smile laugh laughed cry cried buy bought pay sell wear wore try tried use used need needed learn learned teach taught show showed grow grew become became bring brought carry hold held wait waited meet met happy sad angry glad good bad big small large long short tall high low old new young fast slow hot cold warm cool nice fine great pretty beautiful ugly easy hard soft loud quiet dark light red blue green yellow black white brown pink orange purple color first second third last next early late right wrong same different full empty clean dirty rich poor strong weak safe free true real ready busy funny kind about above across after against along around at before behind below beside between by down during for from in inside into near of off on out outside over through to under until up with without one two three four five six seven eight nine ten hundred thousand oh okay well please thank thanks sorry hello hi goodbye bye mr mrs miss dear own away because into onto upon really quite rather almost enough around went does").split(" "));
-function chapterWords(ch){
-  const text = ch.sents.join(" ");
+function chapterWords(sents){
+  const text = sents.join(" ");
   // 항상 대문자로만 나오는 단어(고유명사)는 제외한다
   const lowerSet = new Set((text.match(/\b[a-z][a-z']{3,}\b/g)||[]));
   const freq = {};
@@ -1041,16 +1187,15 @@ function chapterWords(ch){
   return Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,12).map(e=>e[0]);
 }
 
-/* 챕터 퀴즈 생성 (전부 로컬) */
-function buildQuiz(book, ci){
-  const ch = book.chapters[ci];
-  const cands = ch.sents.filter(s=>{ const n = normWords(s).length; return n>=4 && n<=18 && s.length<=140; });
-  const words = chapterWords(ch);
+/* 레슨 퀴즈 보조 문제 생성 (로컬) */
+function buildQuizSents(sents, maxN){
+  const cands = sents.filter(s=>{ const n = normWords(s).length; return n>=4 && n<=18 && s.length<=140; });
+  const words = chapterWords(sents);
   const pool = words.length>=4? words
     : Array.from(new Set(cands.flatMap(s=>normWords(s)).filter(w=>w.length>=4 && !COMMON.has(w)))).slice(0,12);
   const qs = [];
   // 🔤 빈칸 채우기
-  shuffle(cands.filter(s=>normWords(s).some(w=>pool.includes(w)))).slice(0,4).forEach(s=>{
+  shuffle(cands.filter(s=>normWords(s).some(w=>pool.includes(w)))).slice(0,3).forEach(s=>{
     const target = normWords(s).find(w=>pool.includes(w));
     const others = shuffle(pool.filter(w=>w!==target)).slice(0,3);
     if(others.length < 2) return;
@@ -1059,7 +1204,7 @@ function buildQuiz(book, ci){
               blank: s.replace(new RegExp("\\b"+target+"\\b","i"), "_____") });
   });
   // 👂 듣고 고르기
-  shuffle(cands).slice(0,3).forEach(s=>{
+  shuffle(cands).slice(0,2).forEach(s=>{
     const others = shuffle(cands.filter(x=>x!==s)).slice(0,2);
     if(others.length < 2) return;
     const opts = shuffle([s, ...others]);
@@ -1067,12 +1212,9 @@ function buildQuiz(book, ci){
   });
   // 🧩 문장 조립
   shuffle(cands.filter(s=>{ const n = s.replace(/[.,!?"“”]/g,"").split(/\s+/).filter(Boolean).length; return n>=4 && n<=8; }))
-    .slice(0,3).forEach(s=>qs.push({ type:"order", target:s }));
-  return shuffle(qs).slice(0,10);
+    .slice(0,2).forEach(s=>qs.push({ type:"order", target:s }));
+  return shuffle(qs).slice(0, maxN||8);
 }
-const QUIZ_PROMPT = `You create a short reading comprehension quiz for a Korean elementary school student from the given English text. Create exactly 3 multiple-choice questions in VERY simple English about what happened in the text. Reply with ONLY a JSON array, no other text:
-[{"q":"...","opts":["...","...","...","..."],"a":0}]
-where "a" is the index (0-3) of the correct option.`;
 
 /* PDF 텍스트 추출 (필요할 때만 pdf.js 로드 — 처음 한 번 인터넷 필요) */
 function loadScript(src){
@@ -1109,7 +1251,7 @@ const AI_MODELS = [
 const STORE_KEY = "english.v1";
 function defaultStore(){
   return {
-    settings:{ rate:0.9, voiceURI:"", apiKey:"", model:"claude-opus-5", autoSpeak:true },
+    settings:{ rate:0.9, voiceURI:"", apiKey:"", model:"claude-opus-5", autoSpeak:true, accent:"us" },
     books:[], vocab:[],
     profiles:{
       dad:{ days:[], spoken:0, scen:{}, chat:[], chatMeta:{mode:"free"} },
@@ -1161,8 +1303,14 @@ function loadVoices(){
   enVoices = synth.getVoices().filter(v => v.lang && v.lang.toLowerCase().startsWith("en"));
 }
 if(synth){ loadVoices(); synth.onvoiceschanged = loadVoices; }
-function pickVoice(){
+function pickVoice(accent){
   if(!enVoices.length) return null;
+  if(accent){
+    // 🇺🇸/🇬🇧 억양 선택 (기기에 해당 음성이 있을 때)
+    const want = accent==="gb" ? "en-gb" : "en-us";
+    const v = enVoices.find(x=>x.lang.toLowerCase().replace("_","-")===want);
+    if(v) return v;
+  }
   if(store.settings.voiceURI){
     const v = enVoices.find(v=>v.voiceURI===store.settings.voiceURI);
     if(v) return v;
@@ -1176,9 +1324,9 @@ function speak(text, opts){
   synth.cancel();
   const token = ++speakingToken;
   const u = new SpeechSynthesisUtterance(text);
-  u.lang = "en-US";
+  u.lang = opts.accent==="gb" ? "en-GB" : "en-US";
   u.rate = opts.rate != null ? opts.rate : store.settings.rate;
-  const v = pickVoice(); if(v) u.voice = v;
+  const v = pickVoice(opts.accent); if(v) u.voice = v;
   u.onend = ()=>{ if(token===speakingToken && opts.onend) opts.onend(); };
   u.onerror = ()=>{ if(token===speakingToken && opts.onend) opts.onend(); };
   synth.speak(u);
@@ -1294,11 +1442,12 @@ const ui = {
   aiBusy: false,     // AI 요청 중복 방지
   pendingInput: null,// 힌트 클릭 시 입력창에 미리 채울 문장
   bookId: null,      // 리딩 중인 책
-  ci: 0,             // 리딩 중인 챕터
+  li: 0,             // 리딩 중인 레슨 (Day)
+  ltab: "read",      // 레슨 탭: read | words | gram | quiz
   showVocab: false,  // 단어장 펼침
   showPaste: false,  // 붙여넣기 폼 펼침
   importing: false,  // PDF/파일 가져오는 중
-  compLoading: false // AI 내용 퀴즈 생성 중
+  genLoading: false  // AI 레슨 생성 중
 };
 
 function go(view, setup){
@@ -1316,7 +1465,7 @@ function render(){
   else if(ui.view==="scenario") app.innerHTML = vScenario();
   else if(ui.view==="pattern") app.innerHTML = vPattern();
   else if(ui.view==="reader") app.innerHTML = vReader();
-  else if(ui.view==="chapters") app.innerHTML = vChapters();
+  else if(ui.view==="lessons") app.innerHTML = vLessons();
   else if(ui.view==="quiz") app.innerHTML = vQuiz();
   else if(ui.view==="settings") app.innerHTML = vSettings();
   window.scrollTo(0,0);
@@ -1703,11 +1852,12 @@ function vReadTab(){
   const vocab = store.vocab;
   const rowFor = (emoji, title, sub, id, deletable)=>{
     const book = getBook(id);
-    const total = bookTotal(book);
+    const ls = lessonsOf(book);
     const meta = store.books.find(x=>x.id===id);
-    const pct = (meta && total)? Math.round(bookRead(book, meta)/total*100) : 0;
-    const chap = book.chapters.length>1? book.chapters.length+"챕터 · " : "";
-    return bookRow(emoji, title, chap+total+"문장"+(sub? " · "+sub:""), pct, id, deletable);
+    const done = meta? ls.filter((_,i)=>(((meta.ldone||{})[i])||{}).read).length : 0;
+    const pct = ls.length? Math.round(done/ls.length*100) : 0;
+    const course = ls.length+"일 코스 · "+bookTotal(book)+"문장";
+    return bookRow(emoji, title, course+(sub? " · "+sub:""), pct, id, deletable);
   };
   const builtinRows = BOOKS_BUILTIN.map(b=>rowFor(b.emoji, b.title, b.ko, b.id, false)).join("");
   const myBooks = store.books.filter(b=>!b.builtin);
@@ -1720,7 +1870,7 @@ function vReadTab(){
     </div>
     ${ui.showVocab? (vocab.length? vocab.map((v,i)=>`
       <div class="key-expr">
-        <div>${esc(v.w)} <span class="ko">${esc(v.at)}</span></div>
+        <div>${esc(v.w)}${v.ko? ` <span class="ko">— ${esc(v.ko)}</span>`:""} <span class="ko">${esc(v.at)}</span></div>
         <div style="display:flex;gap:6px;flex-shrink:0">
           <button class="play" onclick="App.sayVocab(${i})">🔊</button>
           <button class="play" onclick="App.removeVocab(${i})">✕</button>
@@ -1747,88 +1897,174 @@ function vReadTab(){
 }
 function newReaderSession(idx){
   return { idx, listening:false, heard:"", result:null, selWord:null,
-           playing:false, explain:null, explaining:false, savedWord:null, cw:null };
+           playing:false, explain:null, explaining:false, savedWord:null,
+           cw:null, showTrans:false };
 }
-function vChapters(){
+function vLessons(){
   const meta = store.books.find(b=>b.id===ui.bookId);
   const book = getBook(ui.bookId);
-  if(!meta || !book.chapters.length) return topbar("📖 리딩") + `<div class="card center muted">책을 불러오지 못했어요.</div>`;
-  const pos = posOf(meta);
-  const curIdx = Math.min(pos.c, book.chapters.length-1);
-  const total = bookTotal(book), read = bookRead(book, meta);
-  const rows = book.chapters.map((ch,i)=>{
-    const done = pos.c>i || (pos.c===i && pos.s>=ch.sents.length);
-    const curFlag = pos.c===i && !done;
-    const q = meta.quiz[i];
-    const em = Array.from(sceneTheme(ch).em)[0];
-    const stars = q==null? "" : q>=80? " ⭐⭐⭐" : q>=60? " ⭐⭐" : " ⭐";
+  const ls = lessonsOf(book);
+  if(!meta || !ls.length) return topbar("📖 리딩") + `<div class="card center muted">책을 불러오지 못했어요.</div>`;
+  const ldone = ldoneOf(meta);
+  const cur = Math.min(meta.cur, ls.length-1);
+  const doneN = ls.filter((_,i)=>(ldone[i]||{}).read).length;
+  const allDone = doneN >= ls.length;
+  const btn = ui.profile==='gio'? 'orange':'primary';
+  const rows = ls.map((L,i)=>{
+    const d = ldone[i]||{};
+    const em = Array.from(sceneTheme({sents:lessonSents(book,L)}).em)[0];
+    const name = `${L.chTitle? esc(L.chTitle) : esc(meta.title)}${L.parts>1? ` (${L.part}/${L.parts})`:""}`;
+    const status = d.read? (d.quiz!=null? "✅ "+d.quiz+"%" : "✅ 읽음") : (i===cur && !allDone? "오늘":"");
     return `
-    <div class="scen-item" onclick="App.openChapter(${i})">
+    <div class="scen-item" onclick="App.openLesson(${i})">
       <div class="emoji">${em}</div>
-      <div class="t">
-        <div class="en">${esc(ch.title || "Part "+(i+1))}</div>
-        <div class="ko">${ch.sents.length}문장${q!=null? " · 퀴즈 "+q+"%"+stars : ""}</div>
-      </div>
-      <div class="pct ${done?'good':''}">${done? "완독" : curFlag? "읽는 중":""}</div>
-      <div class="progress-dot ${done && (q||0)>=60? 'done':''}"></div>
+      <div class="t"><div class="en">Day ${i+1}</div><div class="ko">${name} · ${L.end-L.start}문장</div></div>
+      <div class="pct ${d.read?'good':''}">${status}</div>
+      <div class="progress-dot ${d.read && (d.quiz||0)>=60? 'done':''}"></div>
     </div>`;
   }).join("");
-  return topbar("📖 "+esc(meta.title)) + bannerHTML(book.chapters[curIdx]) + `
-  <div class="card" style="padding:10px 14px">
-    <div class="muted">전체 진행 ${read} / ${total} 문장 · 챕터를 다 읽으면 📝 퀴즈가 열려요</div>
-    <div class="rbar"><i style="width:${total? Math.round(read/total*100):0}%"></i></div>
-    <button class="btn ${ui.profile==='gio'?'orange':'primary'} block" onclick="App.openChapter(${curIdx})">▶ 이어 읽기</button>
-  </div>` + rows;
+  return topbar("📖 "+esc(meta.title))
+    + illustHTML(lessonSents(book, ls[cur]), "cur")
+    + `<div class="card" style="padding:12px 14px">
+      <div style="display:flex;align-items:center"><b>📅 ${allDone? "전부 완독했어요! 🏆" : "오늘의 레슨 — Day "+(cur+1)}</b>
+        <span class="muted" style="margin-left:auto">${doneN}/${ls.length}일</span></div>
+      <div class="rbar"><i style="width:${Math.round(doneN/ls.length*100)}%"></i></div>
+      <div class="muted" style="margin-bottom:6px">하루 한 레슨, 30분이면 충분해요!</div>
+      <button class="btn ${btn} block" onclick="App.openLesson(${cur})">▶ ${allDone? "다시 읽기":"오늘의 레슨 시작"}</button>
+    </div>` + rows;
+}
+function vWordsTab(ld, sents, btn){
+  if(ld && ld.words && ld.words.length){
+    return `
+    <div class="card">
+      <div style="display:flex;align-items:center"><b>📝 오늘의 단어장</b><span class="chip green" style="margin-left:auto">총 ${ld.words.length}개</span></div>
+      ${ld.words.map((w,i)=>`
+      <div class="vrow">
+        <span class="w">${esc(w.w)}</span><span class="p">[${esc(w.p||"")}]</span><span class="ko">${esc(w.ko||"")}</span>
+        <button class="play" onclick="App.sayLessonWord(${i})">🔊</button>
+      </div>`).join("")}
+      <button class="btn ${btn} block" onclick="App.saveLessonWords()">➕ 전부 내 단어장에 담기</button>
+    </div>`;
+  }
+  const cw = chapterWords(sents);
+  ui.session.cw = cw;
+  return `
+  <div class="card">
+    <b>🔑 이 레슨의 단어</b> <span class="muted">(뜻·발음은 '오늘의 레슨 준비하기'를 누르면 생겨요)</span>
+    <div style="margin-top:8px">${cw.length? cw.map((w,i)=>`<button class="wchip" onclick="App.tapChapWord(${i})">${esc(w)}</button>`).join("") : '<span class="muted">추출할 단어가 없어요</span>'}</div>
+    ${ui.session.savedWord? `<div style="margin-top:8px"><span class="chip green">✓ ${esc(ui.session.savedWord)} 저장!</span></div>`:""}
+  </div>`;
+}
+function vGramTab(ld){
+  const gs = (ld && ld.grammar) || [];
+  const es = (ld && ld.expr) || [];
+  if(!gs.length && !es.length)
+    return `<div class="card center muted">'✨ 오늘의 레슨 준비하기'를 누르면<br>이 레슨의 문법 포인트와 표현이 정리돼요.</div>`;
+  return gs.map(g=>`
+    <div class="card">
+      <div class="muted">📘 오늘의 문법</div>
+      <h3 style="margin:4px 0">${esc(g.t||"")}</h3>
+      <div>${esc(g.ko||"")}</div>
+      ${g.ex? `<div class="muted" style="margin-top:6px;font-style:italic">"${esc(g.ex)}"</div>`:""}
+    </div>`).join("")
+  + es.map(e=>`
+    <div class="card">
+      <div class="muted">💬 오늘의 표현</div>
+      <h3 style="margin:4px 0">${esc(e.en||"")}</h3>
+      <div>${esc(e.ko||"")}</div>
+    </div>`).join("");
+}
+function vQuizTab(ld, meta, btn){
+  const best = (ldoneOf(meta)[ui.li]||{}).quiz;
+  return `
+  <div class="card center">
+    <div style="font-size:2rem">🎯</div>
+    <h3 style="margin:6px 0">Day ${ui.li+1} 퀴즈</h3>
+    <p class="muted">${ld? "단어 뜻 + 내용 이해 + 빈칸·듣기·조립 문제가 섞여 나와요." : "지금은 빈칸·듣기·조립 문제만 나와요. 레슨을 준비하면 단어 뜻·내용 문제가 추가돼요."}</p>
+    ${best!=null? `<div class="score-big ${scoreClass(best)}" style="font-size:1.6rem;margin:4px 0">최고 ${best}%</div>`:""}
+    <button class="btn ${btn} block" onclick="App.startQuiz()">▶ 퀴즈 시작</button>
+  </div>`;
 }
 function vReader(){
   const meta = store.books.find(b=>b.id===ui.bookId);
   const book = getBook(ui.bookId);
-  const ch = book.chapters[ui.ci];
+  const ls = lessonsOf(book);
+  const L = ls[ui.li];
   const sess = ui.session;
-  if(!meta || !ch || !ch.sents.length) return topbar("📖 리딩") + `<div class="card center muted">책을 불러오지 못했어요.</div>`;
-  const sents = ch.sents;
+  if(!meta || !L) return topbar("📖 리딩") + `<div class="card center muted">레슨을 불러오지 못했어요.</div>`;
+  const sents = lessonSents(book, L);
   const total = sents.length;
+  const ld = getLessonData(ui.bookId, ui.li);
+  const btn = ui.profile==='gio'? 'orange':'primary';
+  const header = topbar("📖 "+esc(meta.title))
+    + illustHTML(sents, "r"+ui.li)
+    + `<div class="daylabel">DAY ${ui.li+1} / ${ls.length}</div>
+       <div class="lesson-title">${esc(L.chTitle || meta.title)}${L.parts>1? ` <span class="muted" style="font-size:.85rem">(${L.part}/${L.parts})</span>`:""}</div>
+       <div class="ltabs">
+         <button class="${ui.ltab==='read'?'on':''}" onclick="App.setLtab('read')">📖 읽기</button>
+         <button class="${ui.ltab==='words'?'on':''}" onclick="App.setLtab('words')">📝 단어장</button>
+         <button class="${ui.ltab==='gram'?'on':''}" onclick="App.setLtab('gram')">📘 문법·표현</button>
+         <button class="${ui.ltab==='quiz'?'on':''}" onclick="App.setLtab('quiz')">🎯 퀴즈</button>
+       </div>`;
+  const genCard = ld? "" : `
+    <div class="card center">
+      ${ui.genLoading? `<div class="typing">✨ 오늘의 레슨 만드는 중... (번역·단어·문법·퀴즈)</div>`
+      : store.settings.apiKey? `
+        <p class="muted" style="margin-bottom:8px">AI가 이 레슨의 <b>번역·단어 뜻·문법·퀴즈</b>를 만들어 줘요 (한 번만 만들면 이 기기에 저장돼요)</p>
+        <button class="btn ${btn}" onclick="App.genLesson()">✨ 오늘의 레슨 준비하기</button>`
+      : `<p class="muted">⚙️ 설정에 Claude API 키를 넣으면 <b>번역·단어 뜻·문법·퀴즈</b>가 자동으로 만들어져요.<br>지금도 읽기·발음 듣기·따라 읽기는 할 수 있어요!</p>
+        <button class="btn ghost small" onclick="App.openSettings('reader')">⚙️ API 키 넣기</button>`}
+    </div>`;
+  if(ui.ltab==="words") return header + genCard + vWordsTab(ld, sents, btn);
+  if(ui.ltab==="gram") return header + genCard + vGramTab(ld);
+  if(ui.ltab==="quiz") return header + genCard + vQuizTab(ld, meta, btn);
+  /* 📖 읽기 탭 */
   if(sess.idx >= total){
-    const isLast = ui.ci >= book.chapters.length-1;
-    const q = meta.quiz[ui.ci];
-    return topbar("📖 "+esc(meta.title)) + bannerHTML(ch, true) + `
+    const isLast = ui.li >= ls.length-1;
+    return header + `
     <div class="practice-box">
       <div style="font-size:3rem">🎉</div>
-      <h3>${esc(ch.title || (book.chapters.length>1? "Part "+(ui.ci+1) : meta.title))} 완독!</h3>
-      <div class="muted" style="margin-top:4px">${total}문장을 다 읽었어요 👏 이제 퀴즈로 확인해 볼까요?</div>
-      <button class="btn ${ui.profile==='gio'?'orange':'primary'} block" onclick="App.startQuiz()">📝 챕터 퀴즈 풀기${q!=null? " (최고 "+q+"%)":""}</button>
-      ${store.settings.apiKey? `<button class="btn ghost block" onclick="App.startCompQuiz()">${ui.compLoading? "💭 퀴즈 만드는 중...":"🤖 내용 이해 퀴즈 (AI)"}</button>`:""}
-      ${!isLast? `<button class="btn ghost block" onclick="App.openChapter(${ui.ci+1})">다음 챕터 →</button>`
-               : `<button class="btn ghost block" onclick="App.back()">🏆 책장으로</button>`}
+      <h3>Day ${ui.li+1} 완독!</h3>
+      <div class="muted" style="margin-top:4px">${total}문장을 다 읽었어요 👏</div>
+      <button class="btn ${btn} block" onclick="App.setLtab('quiz')">🎯 오늘의 퀴즈 풀기</button>
+      <button class="btn ghost block" onclick="App.setLtab('words')">📝 오늘의 단어장 보기</button>
+      ${!isLast? `<button class="btn ghost block" onclick="App.openLesson(${ui.li+1})">다음 Day →</button>`:""}
       <button class="btn ghost block" onclick="App.rereadChapter()">🔁 다시 읽기</button>
     </div>`;
   }
-  if(!sess.cw) sess.cw = chapterWords(ch);
   const s = sents[sess.idx];
   const words = s.split(" ");
+  const wmap = {};
+  if(ld && ld.words) ld.words.forEach(w=>{ wmap[String(w.w).toLowerCase()] = w; });
   const sentHtml = sess.result
     ? markedTarget(s, sess.result.marks)
-    : words.map((w,i)=>`<span class="rword ${sess.selWord===i?'sel':''}" onclick="App.tapWord(${i})">${esc(w)}</span>`).join(" ");
+    : words.map((w,i)=>{
+        const clean = w.replace(/[^a-zA-Z']/g,"").toLowerCase();
+        return `<span class="rword${wmap[clean]? " hl":""} ${sess.selWord===i?'sel':''}" onclick="App.tapWord(${i})">${esc(w)}</span>`;
+      }).join(" ");
   const selRaw = sess.selWord!=null && words[sess.selWord] ? words[sess.selWord].replace(/[^a-zA-Z']/g,"") : "";
-  return topbar("📖 "+esc(meta.title)) + bannerHTML(ch, true) + `
-  ${sess.idx===0 && sess.cw.length? `
-  <div class="card" style="padding:10px 14px">
-    <b>🔑 이 챕터의 단어</b> <span class="muted">눌러서 듣고, 자동으로 단어장에 담겨요</span>
-    <div style="margin-top:6px">${sess.cw.map((w,i)=>`<button class="wchip" onclick="App.tapChapWord(${i})">${esc(w)}</button>`).join("")}</div>
-  </div>`:""}
+  const selInfo = selRaw? wmap[selRaw.toLowerCase()] : null;
+  return header + genCard + `
   <div class="card">
     <div class="muted">${sess.idx+1} / ${total} 문장${sess.playing? " · ▶ 이어 듣는 중":""}</div>
     <div class="rbar"><i style="width:${Math.round(sess.idx/total*100)}%"></i></div>
     ${sess.idx>0? `<div class="muted" style="font-size:.85rem;margin-bottom:8px">${esc(sents[sess.idx-1])}</div>`:""}
-    <div style="font-size:1.3rem;line-height:1.8;font-weight:600">${sentHtml}</div>
-    ${sess.result? "" : `<div class="muted" style="margin-top:6px;font-size:.78rem">모르는 단어를 눌러보세요 👆</div>`}
+    <div style="font-size:1.3rem;line-height:1.9;font-weight:600">${sentHtml}</div>
+    ${sess.result? "" : `<div class="muted" style="margin-top:6px;font-size:.78rem">${ld? "🟡 색칠된 단어를 눌러보세요 — 뜻이 톡 떠요":"모르는 단어를 눌러보세요 👆"}</div>`}
     ${selRaw? `
-    <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <span class="chip orange">${esc(selRaw)}</span>
-      <button class="btn ghost small" onclick="App.sayWord()">🔊 발음</button>
-      <button class="btn orange small" onclick="App.addVocab()">➕ 단어장</button>
+    <div class="wpop">
+      <b>${esc(selRaw)}</b>${selInfo? ` <span style="color:#b45309;font-size:.82rem">[${esc(selInfo.p||"")}]</span> — ${esc(selInfo.ko||"")}`:""}
+      <div style="margin-top:6px;display:flex;gap:8px">
+        <button class="btn ghost small" onclick="App.sayWord()">🔊 발음</button>
+        <button class="btn orange small" onclick="App.addVocab()">➕ 단어장</button>
+      </div>
     </div>`:""}
     ${sess.savedWord? `<div style="margin-top:8px"><span class="chip green">✓ ${esc(sess.savedWord)} 단어장에 저장!</span></div>`:""}
+    ${ld && ld.trans && ld.trans[sess.idx]? `
+    <div style="margin-top:10px">
+      <button class="btn ghost small" onclick="App.toggleTrans()">${sess.showTrans? "▲ 번역 닫기":"▼ 번역 보기"}</button>
+      ${sess.showTrans? `<div class="heard" style="text-align:left;margin-top:6px">${esc(ld.trans[sess.idx])}</div>`:""}
+    </div>`:""}
   </div>
   <div class="practice-box">
     <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
@@ -1836,7 +2072,9 @@ function vReader(){
       <button class="btn ghost small" onclick="App.saySent(1)">🐢 천천히</button>
       ${sess.playing? `<button class="btn ghost small" onclick="App.readerStop()">⏹ 멈춤</button>`
                     : `<button class="btn ghost small" onclick="App.readerPlay()">▶ 이어 듣기</button>`}
-      ${store.settings.apiKey? `<button class="btn ghost small" onclick="App.explainSent()">🤖 무슨 뜻?</button>`:""}
+      <button class="btn ghost small" style="${store.settings.accent!=='gb'? 'border:1.5px solid var(--orange)':''}" onclick="App.setAccent('us')">🇺🇸</button>
+      <button class="btn ghost small" style="${store.settings.accent==='gb'? 'border:1.5px solid var(--orange)':''}" onclick="App.setAccent('gb')">🇬🇧</button>
+      ${!ld && store.settings.apiKey? `<button class="btn ghost small" onclick="App.explainSent()">🤖 무슨 뜻?</button>`:""}
     </div>
     ${sess.explaining? `<div class="typing" style="margin-top:8px">💭 설명 만드는 중...</div>`
       : sess.explain? `<div class="heard" style="text-align:left;white-space:pre-wrap;margin-top:10px">${esc(sess.explain)}</div>`:""}
@@ -1846,7 +2084,7 @@ function vReader(){
       <div>${scoreMsg(sess.result.pct)}</div>`:""}
     <div style="display:flex;gap:8px;margin-top:12px">
       <button class="btn ghost" style="flex:1" onclick="App.readerPrev()" ${sess.idx===0?"disabled":""}>← 이전</button>
-      <button class="btn ${ui.profile==='gio'?'orange':'primary'}" style="flex:2" onclick="App.readerNext()">다음 →</button>
+      <button class="btn ${btn}" style="flex:2" onclick="App.readerNext()">다음 →</button>
     </div>
   </div>`;
 }
@@ -1857,9 +2095,6 @@ function optCls(sess, q, i){
   return "";
 }
 function vQuiz(){
-  const meta = store.books.find(b=>b.id===ui.bookId);
-  const book = getBook(ui.bookId);
-  const ch = book.chapters[ui.ci];
   const sess = ui.session;
   const total = sess.qs.length;
   const btnCls = ui.profile==='gio'? 'orange':'primary';
@@ -1869,10 +2104,9 @@ function vQuiz(){
     <div class="practice-box">
       <div style="font-size:3rem">${pct>=80?"🏆":pct>=60?"🎉":"💪"}</div>
       <div class="score-big ${scoreClass(pct)}">${pct}%</div>
-      <div>${sess.score} / ${total} 문제 정답! ${pct>=60? "챕터 통과! ⭐":"한 번 더 읽고 도전해 볼까요?"}</div>
+      <div>${sess.score} / ${total} 문제 정답! ${pct>=60? "오늘의 레슨 통과! ⭐":"한 번 더 읽고 도전해 볼까요?"}</div>
       <button class="btn ${btnCls} block" onclick="App.startQuiz()">🔁 다시 도전</button>
-      ${!sess.comp && store.settings.apiKey? `<button class="btn ghost block" onclick="App.startCompQuiz()">${ui.compLoading? "💭 만드는 중...":"🤖 내용 이해 퀴즈 (AI)"}</button>`:""}
-      <button class="btn ghost block" onclick="App.back()">${book.chapters.length>1? "챕터 목록으로":"책장으로"}</button>
+      <button class="btn ghost block" onclick="App.backToLesson()">레슨으로</button>
     </div>`;
   }
   const q = sess.qs[sess.qi];
@@ -1886,8 +2120,7 @@ function vQuiz(){
     <div class="center" style="margin:10px 0"><button class="btn ghost" onclick="App.qReplay()">🔊 다시 듣기</button></div>
     ${q.opts.map((o,i)=>`<button class="qopt ${optCls(sess,q,i)}" onclick="App.qPick(${i})">${esc(o)}</button>`).join("")}`;
   } else if(q.type==="comp"){
-    body = `<div class="muted">🤖 내용 이해</div>
-    <div style="font-size:1.05rem;font-weight:600;line-height:1.6;margin:8px 0">${esc(q.q)}</div>
+    body = `<div style="font-size:1.05rem;font-weight:600;line-height:1.6;margin:8px 0">${esc(q.q)}</div>
     ${q.opts.map((o,i)=>`<button class="qopt ${optCls(sess,q,i)}" onclick="App.qPick(${i})">${esc(o)}</button>`).join("")}`;
   } else {
     body = `<div class="muted">🧩 단어를 순서대로 눌러 문장을 만드세요</div>
@@ -1898,10 +2131,10 @@ function vQuiz(){
     ${sess.phase==="q" && sess.picked.length===sess.chips.length? `<button class="btn ${btnCls} block" onclick="App.qOrderCheck()">확인 ✓</button>`:""}
     ${sess.phase==="a"? `<div style="margin-top:8px;font-weight:700;color:${sess.orderOk?"var(--green)":"var(--red)"}">${sess.orderOk? "정답! 🎉" : "정답: "+esc(q.target)}</div>`:""}`;
   }
-  return topbar("📝 "+esc(ch.title || meta.title)) + `
+  return topbar("📝 Day "+(ui.li+1)+" 퀴즈") + `
   <div class="practice-box" style="text-align:left">
     <div class="step-ind">${sess.qs.map((_,i)=>`<i class="${i<sess.qi?'done':i===sess.qi?'on':''}"></i>`).join("")}</div>
-    <div class="muted">${sess.qi+1} / ${total} 문제${sess.comp? " · 내용 이해":""} · 맞힌 개수 ${sess.score}</div>
+    <div class="muted">${sess.qi+1} / ${total} 문제 · 맞힌 개수 ${sess.score}</div>
     ${body}
     ${sess.phase==="a"? `<button class="btn ${btnCls} block" onclick="App.qNext()">${sess.qi+1<total? "다음 문제 →":"결과 보기 🏁"}</button>`:""}
   </div>`;
@@ -2116,7 +2349,7 @@ function transcriptOf(pid){
   return store.profiles[pid].chat.filter(m=>!m.sys)
     .map(m=> (m.role==="user"? "Learner: " : "Partner: ") + m.content).join("\n");
 }
-async function callAPI(system, messages){
+async function callAPI(system, messages, maxTokens){
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method:"POST",
     headers:{
@@ -2127,7 +2360,7 @@ async function callAPI(system, messages){
     },
     body: JSON.stringify({
       model: store.settings.model,
-      max_tokens: 1024,
+      max_tokens: maxTokens || 1024,
       system: system,
       messages: messages
     })
@@ -2241,11 +2474,12 @@ const App = {
   back(to){
     stopSpeak(); sttStop();
     if(to){ ui.view = to; render(); return; }
-    if(ui.view==="reader" || ui.view==="quiz"){
-      if(getBook(ui.bookId).chapters.length > 1) go("chapters");
+    if(ui.view==="quiz"){ App.backToLesson(); return; }
+    if(ui.view==="reader"){
+      if(lessonsOf(getBook(ui.bookId)).length > 1) go("lessons");
       else { ui.tab = "read"; go("list"); }
     }
-    else if(ui.view==="chapters"){ ui.tab = "read"; go("list"); }
+    else if(ui.view==="lessons"){ ui.tab = "read"; go("list"); }
     else if(ui.view==="scenario" || ui.view==="pattern"){ if(ui.view==="pattern") ui.tab="pat"; go("list"); }
     else if(ui.view==="list") go("home");
     else go("home");
@@ -2477,49 +2711,55 @@ const App = {
     }
   },
 
-  /* 리딩책 */
+  /* 리딩책 (레슨) */
   openBook(id){
     const b = BOOKS_BUILTIN.find(x=>x.id===id);
     const meta = ensureBookMeta(id, b? b.title : (store.books.find(x=>x.id===id)||{}).title || "내 책", !!b);
     const book = getBook(id);
-    if(!bookTotal(book)){ alert("책 내용을 불러오지 못했어요."); return; }
+    const ls = lessonsOf(book);
+    if(!ls.length){ alert("책 내용을 불러오지 못했어요."); return; }
+    ldoneOf(meta); save();
     ui.bookId = id;
-    if(book.chapters.length > 1){ go("chapters"); }
-    else App.openChapter(0);
+    if(ls.length > 1) go("lessons");
+    else App.openLesson(0);
   },
-  openChapter(ci){
+  openLesson(li){
     const book = getBook(ui.bookId);
-    const ch = book.chapters[ci];
-    if(!ch || !ch.sents.length) return;
+    const ls = lessonsOf(book);
+    if(!ls[li]) return;
     const meta = store.books.find(b=>b.id===ui.bookId);
-    const pos = posOf(meta);
-    ui.ci = ci;
-    ui.session = newReaderSession(pos.c===ci ? Math.min(pos.s, ch.sents.length) : 0);
+    ui.li = li; ui.ltab = "read";
+    const lp = meta.lpos;
+    ui.session = newReaderSession(lp && lp.li===li ? Math.min(lp.s, lessonSents(book, ls[li]).length) : 0);
     go("reader");
   },
-  rereadChapter(){
-    ui.session = newReaderSession(0);
-    render();
-  },
+  setLtab(t){ stopSpeak(); sttStop(); ui.ltab = t; render(); },
+  rereadChapter(){ ui.session = newReaderSession(0); ui.ltab = "read"; render(); },
   deleteBook(id){
     if(!confirm("이 책을 삭제할까요? (단어장은 남아요)")) return;
     store.books = store.books.filter(b=>b.id!==id);
     delete _bookCache[id];
-    try{ localStorage.removeItem("english.book."+id); }catch(e){}
+    try{
+      localStorage.removeItem("english.book."+id);
+      Object.keys(localStorage).filter(k=>k.indexOf("english.lesson."+id+".")===0).forEach(k=>localStorage.removeItem(k));
+    }catch(e){}
     save(); render();
-  },
-  _savePos(idx){
-    const meta = store.books.find(b=>b.id===ui.bookId);
-    const pos = posOf(meta);
-    // 가장 멀리 읽은 지점만 앞으로 나아간다
-    if(ui.ci > pos.c || (ui.ci === pos.c && idx > pos.s)) meta.pos = {c:ui.ci, s:idx};
   },
   readerNext(){
     const sess = ui.session;
+    const meta = store.books.find(b=>b.id===ui.bookId);
+    const total = curSents().length;
     sess.idx++;
-    App._savePos(sess.idx);
     sess.result = null; sess.heard = ""; sess.selWord = null;
-    sess.explain = null; sess.savedWord = null;
+    sess.explain = null; sess.savedWord = null; sess.showTrans = false;
+    if(sess.idx >= total){
+      const ldone = ldoneOf(meta);
+      ldone[ui.li] = Object.assign(ldone[ui.li]||{}, {read:1});
+      meta.cur = Math.max(meta.cur||0, ui.li+1);
+      meta.lpos = null;
+    } else {
+      meta.lpos = {li:ui.li, s:sess.idx};
+    }
     markPracticed(ui.profile);
     save(); render();
   },
@@ -2528,12 +2768,19 @@ const App = {
     if(sess.idx===0) return;
     sess.idx--;
     sess.result = null; sess.heard = ""; sess.selWord = null;
-    sess.explain = null; sess.savedWord = null;
+    sess.explain = null; sess.savedWord = null; sess.showTrans = false;
     render();
   },
   saySent(slow){
     const s = curSents()[ui.session.idx];
-    if(s) speak(s, slow? {rate:0.6} : {});
+    if(s) speak(s, slow? {rate:0.6, accent:store.settings.accent} : {accent:store.settings.accent});
+  },
+  setAccent(a){
+    store.settings.accent = a; save(); render();
+    if(ui.view==="reader" && ui.ltab==="read"){
+      const s = curSents()[ui.session.idx];
+      if(s) speak(s, {accent:a});
+    }
   },
   readerPlay(){
     const sess = ui.session;
@@ -2543,9 +2790,9 @@ const App = {
       if(!sess.playing || ui.view!=="reader" || ui.session!==sess) return;
       if(sess.idx >= sents.length){ sess.playing = false; markPracticed(ui.profile); save(); render(); return; }
       render();
-      speak(sents[sess.idx], { onend: ()=>{
+      speak(sents[sess.idx], { accent:store.settings.accent, onend: ()=>{
         if(!sess.playing || ui.session!==sess) return;
-        sess.idx++; App._savePos(sess.idx); save();
+        sess.idx++;
         setTimeout(playNext, 400);
       }});
     };
@@ -2559,7 +2806,7 @@ const App = {
     sess.savedWord = null;
     if(sess.selWord!=null){
       const w = curSents()[sess.idx].split(" ")[i].replace(/[^a-zA-Z']/g,"");
-      if(w) speak(w);
+      if(w) speak(w, {accent:store.settings.accent});
     }
     render();
   },
@@ -2567,8 +2814,8 @@ const App = {
     const sess = ui.session;
     const w = sess.cw && sess.cw[i];
     if(!w) return;
-    speak(w);
-    if(!store.vocab.some(v=>v.w===w)) store.vocab.push({w, at:todayStr()});
+    speak(w, {accent:store.settings.accent});
+    if(!store.vocab.some(v=>v.w===w)) store.vocab.push({w, ko:"", at:todayStr()});
     sess.savedWord = w;
     save(); render();
   },
@@ -2576,18 +2823,36 @@ const App = {
     const sess = ui.session;
     if(sess.selWord==null) return;
     const w = curSents()[sess.idx].split(" ")[sess.selWord].replace(/[^a-zA-Z']/g,"");
-    if(w) speak(w);
+    if(w) speak(w, {accent:store.settings.accent});
   },
   addVocab(){
     const sess = ui.session;
     if(sess.selWord==null) return;
     const w = curSents()[sess.idx].split(" ")[sess.selWord].replace(/[^a-zA-Z']/g,"").toLowerCase();
     if(!w) return;
-    if(!store.vocab.some(v=>v.w===w)) store.vocab.push({w, at:todayStr()});
+    const ld = getLessonData(ui.bookId, ui.li);
+    const info = ld && ld.words? ld.words.find(x=>String(x.w).toLowerCase()===w) : null;
+    if(!store.vocab.some(v=>v.w===w)) store.vocab.push({w, ko: info? (info.ko||"") : "", at:todayStr()});
     sess.savedWord = w; sess.selWord = null;
     save(); render();
   },
-  sayVocab(i){ const v = store.vocab[i]; if(v) speak(v.w); },
+  sayLessonWord(i){
+    const ld = getLessonData(ui.bookId, ui.li);
+    const x = ld && ld.words && ld.words[i];
+    if(x) speak(String(x.w), {accent:store.settings.accent});
+  },
+  saveLessonWords(){
+    const ld = getLessonData(ui.bookId, ui.li);
+    if(!ld || !ld.words) return;
+    let n = 0;
+    ld.words.forEach(x=>{
+      const w = String(x.w).toLowerCase();
+      if(!store.vocab.some(v=>v.w===w)){ store.vocab.push({w, ko:x.ko||"", at:todayStr()}); n++; }
+    });
+    save();
+    alert(n? n+"개 단어를 내 단어장에 담았어요!" : "이미 모두 담겨 있어요!");
+  },
+  sayVocab(i){ const v = store.vocab[i]; if(v) speak(v.w, {accent:store.settings.accent}); },
   removeVocab(i){ store.vocab.splice(i,1); save(); render(); },
   toggleVocab(){ ui.showVocab = !ui.showVocab; render(); },
   togglePaste(){ ui.showPaste = !ui.showPaste; render(); },
@@ -2622,10 +2887,31 @@ const App = {
       localStorage.setItem("english.book."+id, JSON.stringify({v:2, chapters}));
     }catch(e){ alert("저장 공간이 부족해요. 안 읽는 책을 삭제하고 다시 시도해 주세요."); render(); return; }
     _bookCache[id] = {chapters};
-    store.books.push({id, title, builtin:false, pos:{c:0,s:0}, quiz:{}, addedAt:todayStr()});
+    store.books.push({id, title, builtin:false, pos:{c:0,s:0}, quiz:{}, ldone:{}, cur:0, addedAt:todayStr()});
     ui.showPaste = false;
     save();
     App.openBook(id);
+  },
+  toggleTrans(){ ui.session.showTrans = !ui.session.showTrans; render(); },
+  async genLesson(){
+    if(ui.aiBusy) return;
+    const sents = curSents();
+    if(!sents.length) return;
+    ui.aiBusy = true; ui.genLoading = true; render();
+    try{
+      const numbered = sents.map((s,i)=>(i+1)+". "+s).join("\n");
+      const rep = await callAPI(LESSON_PROMPT, [{role:"user", content:numbered}], 6000);
+      const data = JSON.parse(rep.replace(/```json|```/g,"").trim());
+      if(!Array.isArray(data.trans) || !Array.isArray(data.words)) throw new Error("레슨 형식을 읽지 못했어요");
+      data.trans = data.trans.slice(0, sents.length);
+      while(data.trans.length < sents.length) data.trans.push("");
+      if(!setLessonData(ui.bookId, ui.li, data)) throw new Error("저장 공간이 부족해요");
+      markPracticed(ui.profile);
+    }catch(e){
+      alert("레슨을 만들지 못했어요: "+(e.message||e)+"\n잠시 후 다시 시도해 주세요.");
+    }
+    ui.aiBusy = false; ui.genLoading = false;
+    render();
   },
   async explainSent(){
     if(ui.aiBusy) return;
@@ -2642,36 +2928,25 @@ const App = {
     if(ui.session===sess){ sess.explaining = false; render(); }
   },
 
-  /* 챕터 퀴즈 */
+  /* 레슨 퀴즈 */
   startQuiz(){
-    const book = getBook(ui.bookId);
-    const qs = buildQuiz(book, ui.ci);
-    if(qs.length < 3){ alert("이 챕터는 퀴즈를 만들 문장이 조금 부족해요. 다음 챕터에서 만나요!"); return; }
-    ui.session = { kind:"quiz", comp:false, qs, qi:0, score:0, phase:"q", sel:null, picked:[], chips:[], orderOk:false };
+    const sents = curSents();
+    const ld = getLessonData(ui.bookId, ui.li);
+    let qs = buildQuizSents(sents, ld? 4 : 8);
+    if(ld && Array.isArray(ld.quiz)){
+      const aiQs = ld.quiz.filter(x=>x && x.q && Array.isArray(x.opts) && x.opts.length>=2 && typeof x.a==="number")
+        .map(x=>({type:"comp", q:String(x.q), opts:x.opts.map(String), ans:Math.min(x.a, x.opts.length-1)}));
+      qs = shuffle(qs.concat(aiQs)).slice(0,8);
+    }
+    if(qs.length < 3){ alert("이 레슨은 퀴즈를 만들 문장이 조금 부족해요."); return; }
+    ui.session = { kind:"quiz", qs, qi:0, score:0, phase:"q", sel:null, picked:[], chips:[], orderOk:false };
     App._prepQ();
     go("quiz");
   },
-  async startCompQuiz(){
-    if(!store.settings.apiKey){ alert("설정에 Claude API 키를 넣으면 내용 이해 퀴즈를 쓸 수 있어요."); return; }
-    if(ui.aiBusy) return;
-    const book = getBook(ui.bookId);
-    const ch = book.chapters[ui.ci];
-    ui.aiBusy = true; ui.compLoading = true; render();
-    try{
-      const text = ch.sents.join(" ").slice(0, 8000);
-      const rep = await callAPI(QUIZ_PROMPT, [{role:"user", content:text}]);
-      const arr = JSON.parse(rep.replace(/```json|```/g,"").trim());
-      const qs = arr.filter(x=>x && x.q && Array.isArray(x.opts) && x.opts.length>=2 && typeof x.a==="number")
-        .slice(0,5).map(x=>({type:"comp", q:String(x.q), opts:x.opts.map(String), ans:Math.min(x.a, x.opts.length-1)}));
-      if(!qs.length) throw new Error("퀴즈 형식을 읽지 못했어요");
-      ui.aiBusy = false; ui.compLoading = false;
-      ui.session = { kind:"quiz", comp:true, qs, qi:0, score:0, phase:"q", sel:null, picked:[], chips:[], orderOk:false };
-      go("quiz");
-    }catch(e){
-      ui.aiBusy = false; ui.compLoading = false;
-      alert("내용 퀴즈를 만들지 못했어요: "+(e.message||e));
-      render();
-    }
+  backToLesson(){
+    App.openLesson(ui.li);
+    ui.ltab = "quiz";
+    render();
   },
   _prepQ(){
     const sess = ui.session;
@@ -2683,11 +2958,11 @@ const App = {
       if(words.length>2 && sess.chips.every((c,i)=>c.i===i)) sess.chips = shuffle(sess.chips);
       sess.picked = [];
     }
-    if(q.type==="listen"){ setTimeout(()=>{ if(ui.session===sess) speak(q.target); }, 350); }
+    if(q.type==="listen"){ setTimeout(()=>{ if(ui.session===sess) speak(q.target, {accent:store.settings.accent}); }, 350); }
   },
   qReplay(){
     const q = ui.session.qs[ui.session.qi];
-    if(q && q.target) speak(q.target);
+    if(q && q.target) speak(q.target, {accent:store.settings.accent});
   },
   qPick(i){
     const sess = ui.session;
@@ -2696,7 +2971,7 @@ const App = {
     sess.sel = i;
     sess.phase = "a";
     if(i===q.ans) sess.score++;
-    if(q.type==="cloze") speak(q.text);
+    if(q.type==="cloze") speak(q.text, {accent:store.settings.accent});
     if(q.type==="listen") stopSpeak();
     render();
   },
@@ -2723,7 +2998,7 @@ const App = {
     sess.orderOk = built.length===target.length && target.every((w,i)=>w===built[i]);
     sess.phase = "a";
     if(sess.orderOk) sess.score++;
-    speak(q.target);
+    speak(q.target, {accent:store.settings.accent});
     render();
   },
   qNext(){
@@ -2734,7 +3009,9 @@ const App = {
       sess.phase = "done";
       const pct = Math.round(sess.score/sess.qs.length*100);
       const meta = store.books.find(b=>b.id===ui.bookId);
-      meta.quiz[ui.ci] = Math.max(meta.quiz[ui.ci]||0, pct);
+      const ldone = ldoneOf(meta);
+      const cur = ldone[ui.li]||{};
+      ldone[ui.li] = Object.assign(cur, {quiz: Math.max(cur.quiz||0, pct)});
       markPracticed(ui.profile);
       save();
     } else {
