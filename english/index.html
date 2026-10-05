@@ -1251,11 +1251,11 @@ const GEMINI_MODELS = [
   { id:"gemini-2.5-pro",        label:"Gemini 2.5 Pro (품질 최고)" },
   { id:"gemini-2.5-flash-lite", label:"Gemini 2.5 Flash-Lite (가장 빠름)" }
 ];
-// 키 모양으로 공급자 자동 인식: Google AI Studio 키는 AIza…, Anthropic 키는 sk-ant-…
+// 키 모양으로 공급자 자동 인식: Google 키는 AQ.(2026~ 새 형식) 또는 AIza(구형), Anthropic 키는 sk-ant-…
 function apiProvider(){
   const k = store.settings.apiKey||"";
   if(k.startsWith("sk-ant")) return "claude";
-  if(k.includes("AIza")) return "gemini";
+  if(k.startsWith("AQ.") || k.includes("AIza")) return "gemini";
   return "claude";
 }
 function providerModels(){ return apiProvider()==="gemini" ? GEMINI_MODELS : AI_MODELS; }
@@ -2472,7 +2472,7 @@ function vSettings(){
     <h3 style="margin-bottom:4px">🤖 AI 프리토킹</h3>
     <div class="set-row">
       <label>API 키</label>
-      <input type="password" placeholder="AIza... 또는 sk-ant-..." value="${esc(st.apiKey)}" onchange="App.setApiKey(this.value)">
+      <input type="password" placeholder="AQ... / AIza... / sk-ant-..." value="${esc(st.apiKey)}" onchange="App.setApiKey(this.value)">
     </div>
     ${st.apiKey? `<p class="muted" style="margin:-2px 0 6px">${apiProvider()==="gemini"? "✅ Google Gemini 키로 인식했어요":"✅ Claude(Anthropic) 키로 인식했어요"} · ${esc(st.apiKey.slice(0,8))}… (${st.apiKey.length}자)</p>`:""}
     <div class="set-row">
